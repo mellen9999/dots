@@ -1,0 +1,32 @@
+# not a terminal app — can't read the ANSI palette, so hex mirrors the heatsync palette by hand.
+# severity: low=gray 808080, normal=brand orange ff8700, high=red ff0000. full-contrast white text.
+font=Terminus 11
+background-color=#000000
+text-color=#ffffff
+border-color=#808080
+border-size=1
+border-radius=0
+padding=6
+margin=4
+default-timeout=4000
+max-visible=4
+anchor=top-right
+
+[urgency=low]
+border-color=#808080
+default-timeout=3000
+
+[urgency=normal]
+border-color=#ff8700
+default-timeout=4000
+
+[urgency=high]
+border-color=#ff0000
+text-color=#ffffff
+default-timeout=0
+
+# lifeplanner nudges/reminders never auto-fade — persist until dismissed so nothing is missed.
+# ignore-timeout=1 overrides any -t the sender passes; default-timeout=0 = sticky.
+[app-name=lifeplanner]
+ignore-timeout=1
+default-timeout=0

@@ -1,0 +1,6 @@
+[Unit]
+Description=Verify the claude code setup still does what it claims
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh %h/.claude/selfcheck/notify.sh

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# check local playerctl first, then the other machine
+local_song=$(playerctl metadata --format '{{artist}} - {{title}}' 2>/dev/null)
+if [[ -n "$local_song" && "$local_song" != " - " ]]; then
+  echo "$local_song"
+  exit
+fi
+
+host=$(hostname)
+if [[ "$host" == "heatpc" ]]; then
+  remote=mele
+else
+  remote=heatpc
+fi
+
+ssh -o ConnectTimeout=2 "$remote" "playerctl metadata --format '{{artist}} - {{title}}'" 2>/dev/null | grep -v '^ - $'

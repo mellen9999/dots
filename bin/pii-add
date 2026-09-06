@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# pii-add — append a personal term to the private git denylist without it ever
+# appearing on screen, in scrollback, or in shell history. value read silently.
+set -euo pipefail
+DENY="${PII_DENYLIST:-$HOME/.local/share/secure/pii-denylist}"
+mkdir -p "$(dirname "$DENY")"; chmod 700 "$(dirname "$DENY")"
+printf 'term to block (input hidden): ' >&2
+IFS= read -rs term
+echo >&2
+[ -z "$term" ] && { echo "empty — nothing added" >&2; exit 1; }
+printf '%s\n' "$term" >> "$DENY"
+chmod 600 "$DENY"
+echo "added (1 term). total active terms: $(grep -cvE '^[[:space:]]*(#|$)' "$DENY")" >&2

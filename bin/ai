@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# offline ai fallback — llama.cpp + qwen3-coder-30b, no network needed
+set -euo pipefail
+
+PORT=11435
+MODEL_REF=${AI_MODEL:-qwen3-coder/30b}
+MANIFEST=/var/lib/ollama/manifests/registry.ollama.ai/library/$MODEL_REF
+LOG=${XDG_STATE_HOME:-$HOME/.local/state}/ai-llama.log
+CTX=${AI_CTX:-32768}
+
+up() { curl -sf -m 2 "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; }
+
+stop() {
+  pkill -f "llama-server .*--port $PORT" 2>/dev/null || true
+  echo "ai: stopped, vram freed"
+}
+
+start() {
+  up && return 0
+  [ -r "$MANIFEST" ] || { echo "ai: no manifest at $MANIFEST" >&2; exit 1; }
+  local blob
+  blob=$(python3 -c 'import sys,json;d=json.load(open(sys.argv[1]));print(max(d["layers"],key=lambda x:x["size"])["digest"].replace(":","-"))' "$MANIFEST")
+  local gguf=/var/lib/ollama/blobs/$blob
+  [ -r "$gguf" ] || { echo "ai: model blob unreadable: $gguf" >&2; exit 1; }
+
+  mkdir -p "$(dirname "$LOG")"
+  echo "ai: starting llama-server (${MODEL_REF}, ctx $CTX)..." >&2
+  MANGOHUD=0 setsid nohup llama-server -m "$gguf" --jinja -c "$CTX" -ngl 99 \
+    --host 127.0.0.1 --port "$PORT" --alias "${MODEL_REF%%/*}" \
+    >"$LOG" 2>&1 </dev/null & disown
+
+  for _ in $(seq 1 60); do
+    up && { echo "ai: ready on :$PORT" >&2; return 0; }
+    sleep 2
+  done
+  echo "ai: server failed to come up — see $LOG" >&2; exit 1
+}
+
+case "${1:-}" in
+  stop)   stop ;;
+  status) up && echo "ai: up on :$PORT" || echo "ai: down" ;;
+  serve)  start ;;
+  *)      start; exec opencode run --agent local "$@" ;;
+esac

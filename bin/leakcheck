@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# leakcheck — on-demand TOTAL leak audit across every git repo under a root.
+# the pre-commit guards only stop FUTURE leaks; this finds what's ALREADY there.
+#   - secrets: gitleaks finding COUNTS over working tree + full history (baseline —
+#     gitleaks flags test fixtures / entropy / public IDs too, so judge by change,
+#     not absolute count; the pre-commit hook already blocks new secrets).
+#   - PII: your private denylist + SSN/GPS-coord patterns over full history. This is
+#     the actionable alarm — a HIT on a REMOTE repo means it's already published.
+# output is REDACTED — counts / yes-no only, never the value or its location.
+#
+# usage:  leakcheck [root-dir]   (default: $HOME)
+set -uo pipefail
+ROOT="${1:-$HOME}"
+DENY="${PII_DENYLIST:-$HOME/.local/share/secure/pii-denylist}"
+GITLEAKS="$(command -v gitleaks 2>/dev/null || echo "$HOME/.local/bin/gitleaks")"
+PIIMATCH="$(dirname "$(readlink -f "$0")")/../githooks/pii-match"
+export PII_DENYLIST="$DENY"   # so pii-match reads the same denylist
+PII_RE='[0-9]{3}-[0-9]{2}-[0-9]{4}|-?[0-9]{1,3}\.[0-9]{4,},[[:space:]]*-?[0-9]{1,3}\.[0-9]{4,}'
+
+deny=""
+if [ -f "$DENY" ]; then
+  deny="$(grep -vE '^[[:space:]]*(#|$)' "$DENY")"
+  [ -z "$deny" ] && echo "ⓘ denylist empty — personal-term audit inert. populate with: pii-add" >&2
+else
+  echo "ⓘ no denylist ($DENY) — personal-term audit skipped. create with: pii-add" >&2
+fi
+[ -x "$GITLEAKS" ] || echo "⚠ gitleaks not found — secret audit skipped." >&2
+
+count() { grep -o '"RuleID"' "$1" 2>/dev/null | wc -l | tr -d ' '; }
+printf '%-22s %-7s %-9s %-9s %-4s %-4s\n' repo remote sec:tree sec:hist pii ptn
+printf '%.0s-' {1..62}; echo
+pii_alarms=0
+while IFS= read -r gitdir; do
+  repo="$(dirname "$gitdir")"; name="$(basename "$repo")"
+  url="$(git -C "$repo" remote get-url origin 2>/dev/null)"
+  remote="local"; [ -n "$url" ] && remote="REMOTE"
+  # LEAKCHECK_OWNER set => audit only repos you own; skip vendor clones (their
+  # remote points elsewhere). your local-only repos are kept (no remote = yours).
+  if [ -n "${LEAKCHECK_OWNER:-}" ] && [ "$remote" = REMOTE ]; then
+    case "$url" in *"$LEAKCHECK_OWNER"*) ;; *) continue;; esac
+  fi
+  st="-" sh="-" pii="-" ptn="-"
+  if [ -x "$GITLEAKS" ]; then
+    tf="$(mktemp)"
+    "$GITLEAKS" dir "$repo" --no-banner --redact -f json -r "$tf" >/dev/null 2>&1; st="$(count "$tf")"
+    "$GITLEAKS" git "$repo" --no-banner --redact -f json -r "$tf" >/dev/null 2>&1; sh="$(count "$tf")"
+    rm -f "$tf"
+    [ "$st" = 0 ] && st="·"; [ "$sh" = 0 ] && sh="·"
+  fi
+  # stream history through grep (don't buffer big repos); -q early-exits
+  if [ -n "$deny" ] && [ -x "$PIIMATCH" ]; then
+    if git -C "$repo" log --all -p --no-color 2>/dev/null | "$PIIMATCH"; then
+      pii="HIT"; [ "$remote" = REMOTE ] && pii_alarms=$((pii_alarms+1)); else pii="·"; fi
+  fi
+  if git -C "$repo" log --all -p --no-color 2>/dev/null | grep -qE "$PII_RE"; then
+    ptn="HIT"; [ "$remote" = REMOTE ] && pii_alarms=$((pii_alarms+1)); else ptn="·"; fi
+  printf '%-22s %-7s %-9s %-9s %-4s %-4s\n' "${name:0:22}" "$remote" "$st" "$sh" "$pii" "$ptn"
+done < <(find "$ROOT" -type d -name .git -prune 2>/dev/null | sort)
+
+echo
+echo "secret counts are a baseline (incl. fixtures/entropy) — investigate any that GREW; new ones are already blocked at commit."
+if [ "$pii_alarms" -gt 0 ]; then
+  echo "✖ $pii_alarms personal-info hit(s) on REMOTE repos — ALREADY PUBLISHED. inspect locally (values withheld), then scrub or accept."
+  exit 1
+fi
+echo "✓ no personal info (denylist/patterns) found in any repo history."

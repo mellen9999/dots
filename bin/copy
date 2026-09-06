@@ -1,0 +1,75 @@
+#!/bin/sh
+# clipboard router — put text on whatever screen mellen is actually looking at.
+#
+#   claude:  echo "..." | copy
+#   shell:   copy some literal text
+#
+# three independent legs, all best-effort, all reported:
+#   pc     wayland clipboard on this box (works from an ssh session too — the
+#          socket is found rather than inherited)
+#   term   osc52 to every attached tmux client, so a phone on plain ssh gets it.
+#          mosh does NOT relay osc52, which is exactly why the phone leg exists.
+#   phone  android clipboard over the tailnet via termux sshd. transport-agnostic:
+#          works over mosh, over ssh, or with nothing attached at all.
+#
+# a silently-empty paste is worse than a loud partial one, so the status line
+# always says which legs landed.
+set -u
+
+PHONE=titan
+
+tmp=$(mktemp) || exit 1
+trap 'rm -f "$tmp"' EXIT INT TERM
+
+if [ $# -gt 0 ]; then
+  printf '%s' "$*" > "$tmp"
+else
+  cat > "$tmp"
+fi
+
+bytes=$(wc -c < "$tmp" | tr -d ' ')
+[ "$bytes" -eq 0 ] && { echo "copy: nothing on stdin" >&2; exit 1; }
+
+# --- pc: wayland clipboard -------------------------------------------------
+pc=no
+if command -v wl-copy >/dev/null 2>&1; then
+  if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+    rt=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+    for s in "$rt"/wayland-[0-9]*; do
+      case $s in *.lock) continue ;; esac
+      [ -S "$s" ] || continue
+      WAYLAND_DISPLAY=${s##*/}; XDG_RUNTIME_DIR=$rt
+      export WAYLAND_DISPLAY XDG_RUNTIME_DIR
+      break
+    done
+  fi
+  [ -n "${WAYLAND_DISPLAY:-}" ] && wl-copy < "$tmp" 2>/dev/null && pc=ok
+fi
+
+# --- term: osc52 to every attached tmux client -----------------------------
+# targeting each client by name beats bare `load-buffer -w`, which only reaches
+# whichever client tmux considers current — the wrong one half the time when the
+# desktop and the phone are both attached.
+term=0
+if command -v tmux >/dev/null 2>&1 && tmux has-session 2>/dev/null; then
+  tmux load-buffer "$tmp" 2>/dev/null
+  for c in $(tmux list-clients -F '#{client_name}' 2>/dev/null); do
+    tmux load-buffer -w -t "$c" "$tmp" 2>/dev/null && term=$((term + 1))
+  done
+fi
+
+# --- phone: android clipboard over tailscale -------------------------------
+phone=off
+if ssh -o BatchMode=yes -o ConnectTimeout=3 "$PHONE" \
+     'command -v termux-clipboard-set >/dev/null && termux-clipboard-set' \
+     < "$tmp" 2>/dev/null; then
+  phone=ok
+fi
+
+printf 'copied %sb -> pc:%s term:%s phone:%s\n' "$bytes" "$pc" "$term" "$phone"
+
+# osc52 payloads above ~74k get truncated by most terminals; say so rather than
+# letting a half-pasted blob look like a success.
+[ "$bytes" -gt 65536 ] && echo "copy: >64k, term leg may be truncated — use the phone leg" >&2
+
+exit 0

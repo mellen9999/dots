@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# audio-verify — prove an audio file is complete and playable
+#
+#   audio-verify file <path> [source_seconds]   verify one file, exit 1 if bad
+#   audio-verify scan [dir] [--deep]            sweep a library for short/corrupt files
+#
+# a partial yt-dlp grab still exits 0 and still plays, so nothing downstream
+# notices until the track cuts off months later. checking the decoded length
+# against the source length is the only thing that catches it at download time.
+
+set -uo pipefail
+
+SELF=$(readlink -f "$0")
+MUSIC_DIR="$HOME/sync/music"
+MIN_SECONDS=${AUDIO_VERIFY_MIN:-90}   # scan-mode suspicion floor
+TOL_ABS=3                             # seconds of slack vs source
+TOL_PCT=2                             # ...or this percent, whichever is larger
+JOBS=4
+
+RED=$'\e[38;5;196m'; DIM=$'\e[2m'; RESET=$'\e[0m'
+err() { echo "${RED}  ✗${RESET} $*" >&2; }
+
+_duration() {
+  local d
+  d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 -- "$1" 2>/dev/null)
+  echo "${d%%.*}"
+}
+
+# the null muxer complains about equal packet timestamps on ogg files that
+# decode in full — a muxing gripe, not damage. only decoder errors count.
+_decodes() {
+  local out status
+  out=$(ffmpeg -v error -i "$1" -f null - 2>&1)
+  status=$?
+  out=$(grep -v 'non monotonically increasing dts' <<<"$out")
+  [[ $status -eq 0 && -z $out ]]
+}
+
+verify_file() {
+  local f=$1 expected=${2:-} size dur tol diff
+
+  [[ -f $f ]] || { err "missing: $f"; return 1; }
+
+  size=$(stat -c%s -- "$f" 2>/dev/null || echo 0)
+  (( size > 10000 )) || { err "too small (${size}B): $f"; return 1; }
+
+  dur=$(_duration "$f")
+  [[ $dur =~ ^[0-9]+$ ]] || { err "unreadable duration: $f"; return 1; }
+  (( dur > 0 )) || { err "zero length: $f"; return 1; }
+
+  if [[ $expected =~ ^[0-9]+$ ]] && (( expected > 0 )); then
+    tol=$(( expected * TOL_PCT / 100 ))
+    (( tol < TOL_ABS )) && tol=$TOL_ABS
+    diff=$(( dur - expected )); (( diff < 0 )) && diff=$(( -diff ))
+    (( diff <= tol )) || { err "truncated: got ${dur}s of ${expected}s: $f"; return 1; }
+  fi
+
+  _decodes "$f" || { err "corrupt, failed to decode: $f"; return 1; }
+  return 0
+}
+
+# one file, scan mode: prints a line only when the file looks wrong
+scan_one() {
+  local f=$1 dur
+  dur=$(_duration "$f")
+  if [[ ! $dur =~ ^[0-9]+$ ]] || (( dur == 0 )); then
+    printf '%6s  %s\n' "??" "$f"
+  elif (( dur < AV_MIN )); then
+    printf '%6s  %s\n' "${dur}s" "$f"
+  elif [[ -n ${AV_DEEP:-} ]] && ! _decodes "$f"; then
+    printf '%6s  %s\n' "corrupt" "$f"
+  fi
+}
+
+scan() {
+  local dir=${1:-$MUSIC_DIR} deep=${2:-} hits
+  [[ -d $dir ]] || { err "no such directory: $dir"; return 1; }
+
+  # --deep decodes every file in full: 4 ffmpegs at ~80% of a core each. that
+  # pegged all 8 cores mid-match once. gg sets this flag while a game is up.
+  if [[ -n ${deep:-} && -e /run/user/$(id -u)/gaming && -z ${AV_FORCE:-} ]]; then
+    err "game mode active — deep scan refused (AV_FORCE=1 to override)"
+    return 1
+  fi
+
+  export AV_MIN=$MIN_SECONDS AV_DEEP=$deep
+  hits=$(find "$dir" -type f \
+      \( -iname '*.opus' -o -iname '*.mp3' -o -iname '*.m4a' \
+         -o -iname '*.flac' -o -iname '*.ogg' -o -iname '*.webm' \) -print0 \
+    | xargs -0 -P "$JOBS" -n1 nice -n 19 ionice -c 3 "$SELF" _scanone \
+    | sort -n)
+
+  if [[ -z $hits ]]; then
+    echo "${DIM}no suspect files under $dir${RESET}"
+    return 0
+  fi
+  echo "$hits"
+  echo "${RED}$(wc -l <<<"$hits") suspect${RESET} ${DIM}(shorter than ${MIN_SECONDS}s or unreadable)${RESET}" >&2
+  return 1
+}
+
+case "${1:-}" in
+  file)     shift; verify_file "$@" ;;
+  scan)     shift
+            dir=""; deep=""
+            for a in "$@"; do
+              [[ $a == --deep ]] && deep=1 || dir=$a
+            done
+            scan "${dir:-$MUSIC_DIR}" "$deep" ;;
+  _scanone) shift; scan_one "$@" ;;
+  *)        sed -n '2,8p' "$SELF" | sed 's/^# \?//'; exit 1 ;;
+esac

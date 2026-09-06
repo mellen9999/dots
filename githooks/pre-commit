@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# global pre-commit — block secrets before they ever enter git history.
+# wired via:  git config --global core.hooksPath ~/sync/config/githooks
+# bypass (rare, deliberate):  git commit --no-verify
+#
+# applies to every repo that doesn't set its own core.hooksPath. repos with a
+# local hooksPath (e.g. heatsync/.githooks) must call gitleaks themselves.
+
+# 1) secret scan of the staged diff. --redact keeps any match out of the
+#    terminal (livestream-safe); a hit fails the commit.
+#    resolve gitleaks even when ~/.local/bin isn't on a bare hook PATH.
+GITLEAKS="$(command -v gitleaks 2>/dev/null || echo "$HOME/.local/bin/gitleaks")"
+if [ -x "$GITLEAKS" ]; then
+  if ! "$GITLEAKS" git --staged --redact --no-banner; then
+    echo "✖ gitleaks: staged changes contain a secret — commit blocked." >&2
+    echo "  inspect, remove the secret, restage. deliberate override: git commit --no-verify" >&2
+    exit 1
+  fi
+else
+  # never silent: a missing scanner is a gap, but shouldn't brick every commit.
+  echo "⚠ gitleaks not installed — secret scan SKIPPED. install it (see ~/sync/config/githooks/README.md)" >&2
+fi
+
+# 1b) personal/doxxing scan (name, address, phone, SSN, coords). patterns live
+#     in pii-scan; your private terms in an un-synced denylist. redacted on hit.
+pii="$(dirname "$0")/pii-scan"
+if [ -x "$pii" ] && ! "$pii"; then
+  exit 1
+fi
+
+# 2) a global hooksPath shadows the repo's own .git/hooks/pre-commit; run it too
+#    so per-repo hooks still fire. use --git-dir (not --git-path, which itself
+#    resolves through core.hooksPath and would point back here).
+git_dir="$(git rev-parse --git-dir 2>/dev/null)"
+local_hook="$git_dir/hooks/pre-commit"
+if [ -n "$git_dir" ] && [ -x "$local_hook" ]; then
+  exec "$local_hook"
+fi
+exit 0

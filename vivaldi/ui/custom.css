@@ -1,0 +1,74 @@
+/* ===================================================================
+   heatsync crisp — vivaldi 8 "unified" custom UI
+   square · zero-motion · flat · terminal palette (#ff8700 accent)
+
+   loaded by vivaldi via pref:
+     vivaldi.appearance.css_ui_mods_directory = ~/sync/config/vivaldi/ui
+
+   design rules (mellen standing prefs):
+     - SQUARE everything, no rounded corners
+     - zero trendy motion
+     - suckless/btop density (density handled by the compact pref)
+     - ANSI-256 terminal palette, orange #ff8700 (xterm 208) accent
+
+   bulletproofing: every rule is cosmetic and scoped under #browser
+   (the chrome UI root). non-matching selectors simply no-op, so a
+   stale selector after a vivaldi update can't break the browser.
+   animations are disabled the official way via vivaldi.theme.use_animation
+   = false; CSS here only flattens transitions so nothing gets stuck
+   mid-fade. =================================================================== */
+
+:root {
+  --hs-orange: #ff8700;   /* xterm 208 */
+  --hs-bg:     #0d0d0d;
+  --hs-fg:     #e4e4e4;
+  --hs-dim:    #808080;
+}
+
+/* ---- 1. square everything (no rounded corners anywhere in chrome) ---- */
+#browser *,
+#browser *::before,
+#browser *::after { border-radius: 0 !important; }
+
+/* ---- 2. flatten motion: transitions jump to final value instantly ---- */
+/*       (keyframe animations are killed by the use_animation pref, the
+          official path — leaving them here would risk hidden elements) */
+#browser *,
+#browser *::before,
+#browser *::after {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}
+
+/* ---- 3. flat: drop UI drop-shadows / glow ---- */
+#browser .button-toolbar,
+#browser .mainbar,
+#browser .toolbar-mainbar,
+#browser .tab,
+#browser .panel,
+#browser .dialog,
+#browser .menu,
+#browser .quick-commands { box-shadow: none !important; }
+
+/* ---- 4. terminal accent: active tab gets a 2px orange top edge ---- */
+#browser .tab-position .tab.active {
+  box-shadow: inset 0 2px 0 0 var(--hs-orange) !important;
+}
+
+/* ---- 5. crisp orange focus ring on the address field ---- */
+#browser .UrlBar-AddressField:focus-within,
+#browser .UrlBar-AddressField.focus {
+  outline: 1px solid var(--hs-orange) !important;
+  outline-offset: -1px;
+}
+
+/* ---- 6. square favicons in the tab strip ---- */
+#browser .tab .favicon img,
+#browser .tab .favicon svg { border-radius: 0 !important; }
+
+/* ---- 7. minimal square scrollbars inside UI panels ---- */
+/*       (pairs with vivaldi.theme.simple_scrollbar = true) */
+#browser ::-webkit-scrollbar { width: 8px; height: 8px; }
+#browser ::-webkit-scrollbar-thumb { background: #2a2a2a; }
+#browser ::-webkit-scrollbar-thumb:hover { background: var(--hs-orange); }
+#browser ::-webkit-scrollbar-track { background: transparent; }

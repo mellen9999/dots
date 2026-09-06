@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# cw — launch Claude Code in an isolated git worktree.
+#
+# Run this instead of `claude` whenever a session will EDIT code. Each instance
+# gets its own branch + working tree off the latest origin/main, so any number
+# can run at once without clobbering each other's files or racing the build.
+# Land the work back with `/cpd` (which rebases, builds, fast-forwards, pushes,
+# then removes the worktree).
+#
+#   cw                # new isolated session off origin/main
+#   cw "<prompt>"     # same, passing an initial prompt through to claude
+#
+# A read-only orchestrator that only plans/delegates can stay on plain `claude`
+# in the main tree; anything that writes files should use `cw`.
+set -euo pipefail
+# shellcheck source=cw-lib.sh
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/cw-lib.sh"
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "cw: not inside a git repository" >&2; exit 1
+}
+cd "$repo_root"
+
+# Refresh the base so the worktree starts from current upstream (offline → local).
+git fetch -q origin 2>/dev/null || true
+base=$(cw_base_ref) || {
+  echo "cw: repo has no commits to branch from" >&2; exit 1
+}
+
+# A worktree under .worktrees/ must not make the tree look dirty — deploy.sh and
+# the pre-commit gates both read that signal.
+cw_exclude_worktrees
+
+# Lead with the repo. Claude derives a session's cross-session peer name from the
+# basename of its cwd, so a bare timestamp made every worktree session anonymous
+# to its siblings — a heatsync instafix once messaged a cmdchamp session because
+# it could not tell them apart. The timestamp+pid tail still guarantees a unique,
+# age-readable directory for cw-clean.
+name="$(basename "$repo_root")-$(date +%y%m%d-%H%M%S)-$$"
+wt=".worktrees/$name"
+branch="claude/$name"
+
+git worktree add -q -b "$branch" "$wt" "$base"
+echo "cw: $repo_root/$wt  →  branch $branch  (base $base)"
+cd "$wt"
+
+# Readable tab: `heatsync-emotes`, not the worktree's timestamp. Not exec'd, so
+# the trap can hand the window back when the session ends.
+trap cw_release_window EXIT
+cw_claim_window "$(basename "$repo_root")" "${1-}"
+claude --permission-mode bypassPermissions "$@"

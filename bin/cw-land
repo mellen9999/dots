@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# cw-land — land the current claude/* worktree branch onto the repo's default
+# branch (resolved from origin, not assumed to be `main` — see cw-lib.sh).
+#
+# Rebases the branch onto the latest upstream default, then fast-forwards that
+# remote branch to it. A repo-scoped flock serializes concurrent lands from sibling worktrees:
+# the first wins, later ones rebase on top of it instead of racing the push.
+# Build outputs are gitignored, so rebases don't hit phantom bundle conflicts.
+#
+# Run from inside the worktree AFTER committing. Then `cw-clean` reaps it.
+set -euo pipefail
+# shellcheck source=cw-lib.sh
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/cw-lib.sh"
+
+branch=$(git branch --show-current)
+case "$branch" in
+  claude/*) ;;
+  *) echo "cw-land: not on a claude/* worktree branch (on '$branch'). Use plain push." >&2; exit 1 ;;
+esac
+
+if [ -n "$(git status --porcelain)" ]; then
+  echo "cw-land: uncommitted changes — commit (or /cpd) first." >&2; exit 1
+fi
+
+cw_has_origin || {
+  echo "cw-land: this repo has no 'origin' — commit and merge locally instead." >&2; exit 1
+}
+# The branch to land ONTO, resolved from the remote rather than assumed to be
+# `main`; 4 of mellen's repos are `master` and every one of them failed here.
+base_ref=$(cw_base_ref)
+base_branch=$(cw_base_branch)
+
+repo_root=$(git rev-parse --show-toplevel)
+lock="/tmp/cw-land-$(printf %s "$repo_root" | sha1sum | cut -c1-12).lock"
+exec 9>"$lock"
+echo "cw-land: acquiring land lock…"
+flock 9
+
+git fetch -q origin
+if ! git rebase "$base_ref"; then
+  echo "cw-land: rebase hit a conflict — resolve here, 'git rebase --continue', then rerun cw-land." >&2
+  exit 1
+fi
+git push origin "HEAD:$base_branch"
+echo "cw-land: ✓ $branch landed → $base_ref ($(git rev-parse --short HEAD)). Close this session; run cw-clean to reap the worktree."
+
+# keep the primary checkout current — the unpacked ext / tooling load from ITS
+# working tree, and a stale one causes ghost-chasing (chronic-stale trap)
+main_co=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+if [ -d "$main_co/.git" ] && [ "$main_co" != "$repo_root" ]; then
+  if git -C "$main_co" pull --ff-only -q origin "$base_branch" 2>/dev/null; then
+    echo "cw-land: primary checkout ff'd to $base_ref"
+  else
+    echo "cw-land: WARN primary checkout NOT updated (dirty/diverged/not-on-main) — $main_co" >&2
+  fi
+fi

@@ -1,0 +1,40 @@
+[user]
+	name = mellen
+	email = you@example.com
+
+[core]
+  pager = delta
+	editor = vis
+	hooksPath = ~/sync/config/githooks
+
+[interactive]
+  diffFilter = delta --color-only
+
+[delta]
+  navigate = true
+  side-by-side = true
+  line-numbers = true
+
+[merge]
+  conflictstyle = diff3
+
+[diff]
+  colorMoved = default
+[init]
+	defaultBranch = main
+[pull]
+	rebase = true
+[push]
+	autoSetupRemote = true
+[fetch]
+	prune = true
+[commit]
+	verbose = true
+[rerere]
+	enabled = true
+[alias]
+	s = status -sb
+	l = log --oneline --graph --decorate -20
+	d = diff
+	dc = diff --cached
+	pushf = push --force-with-lease

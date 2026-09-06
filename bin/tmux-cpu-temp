@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# heatpc: k10temp via hwmon, mele: thermal_zone2
+for f in /sys/class/hwmon/*/temp1_input; do
+  name=$(cat "$(dirname "$f")/name" 2>/dev/null)
+  if [[ "$name" == "k10temp" ]]; then
+    awk '{printf "%.0f", $1/1000}' "$f"
+    exit
+  fi
+done
+
+# fallback: thermal_zone (mele)
+if [[ -f /sys/class/thermal/thermal_zone2/temp ]]; then
+  awk '{printf "%.0f", $1/1000}' /sys/class/thermal/thermal_zone2/temp
+  exit
+fi
+
+echo "?"

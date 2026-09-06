@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# cw-clean — reap claude/* worktrees whose branch is fully merged into the repo's
+# default branch (resolved from origin — see cw-lib.sh).
+#
+# Only removes a worktree when its branch contains no commits missing from that
+# branch (i.e. it landed). Skips locked worktrees and the one you are currently in.
+# Run from anywhere in the repo.
+#
+# THE TRAP THIS GUARDS AGAINST (cost two sessions their uncommitted work on
+# 2026-08-16, and this file's own header used to claim it was impossible):
+# "landed" and "brand new" are the SAME STATE by this test. A worktree `cw` just
+# created sits exactly at the base branch, so `git rev-list base..branch` is empty
+# for both. The old code then ran `git worktree remove --force`, and --force is
+# precisely the flag that tells git to discard uncommitted changes without asking.
+# So a sibling session running cw-clean would delete an active worktree mid-edit.
+# "Nothing unmerged is ever deleted" was true only of COMMITTED work.
+#
+# Two guards, in order of how much they catch:
+#   1. a dirty tree is never reaped — tracked edits, staged or not, AND untracked
+#      files (a brand-new file nobody has committed yet is the exact loss case)
+#   2. a worktree younger than MIN_AGE_MIN is never reaped — covers the window
+#      between `cw` creating the directory and the agent writing its first byte,
+#      where the tree is legitimately clean but about to be used
+# and `remove` no longer passes --force, so git's own dirty check is a third line
+# of defence rather than something we override. A reaper that keeps too much is a
+# tidiness bug; one that deletes too much destroys work. Fail toward keeping.
+set -euo pipefail
+# shellcheck source=cw-lib.sh
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/cw-lib.sh"
+
+cd "$(git rev-parse --show-toplevel)"
+git fetch -q origin 2>/dev/null || true
+# "Landed" means merged into whatever this repo's default branch actually is —
+# assuming `main` made this a no-op on master repos, and a no-op reaper looks
+# exactly like a working one.
+base_ref=$(cw_base_ref) || { echo "cw-clean: repo has no commits" >&2; exit 1; }
+main=$(git rev-parse "$base_ref")
+here=$(git rev-parse --show-toplevel)
+reaped=0
+# Grace period before a clean, at-base worktree is considered abandoned rather
+# than newborn. A landed worktree lingering this long costs nothing; reaping a
+# newborn one costs a session its work. Override with CW_CLEAN_MIN_AGE_MIN=0 when
+# deliberately tidying up after a land.
+MIN_AGE_MIN=${CW_CLEAN_MIN_AGE_MIN:-30}
+
+# Parse `git worktree list --porcelain` into (path, branch, locked) records.
+path="" branch="" locked=0
+flush() {
+  [ -n "$path" ] || return 0
+  case "$branch" in claude/*) ;; *) return 0 ;; esac
+  [ "$locked" = 0 ] || { echo "skip (locked): $branch"; return 0; }
+  [ "$path" != "$here" ] || { echo "skip (current): $branch"; return 0; }
+  # Guard 1: uncommitted work — tracked edits AND untracked files. This is the
+  # one that matters; a fresh worktree with a half-written file looks "landed".
+  if [ -d "$path" ] && [ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ]; then
+    echo "skip (uncommitted changes): $branch"
+    return 0
+  fi
+  # Guard 2: too young to judge. A worktree `cw` just made is clean and at base —
+  # indistinguishable from a landed one — so give it time to be written to.
+  if [ -d "$path" ] && [ -z "$(find "$path" -maxdepth 0 -mmin "+$MIN_AGE_MIN" 2>/dev/null)" ]; then
+    echo "skip (younger than ${MIN_AGE_MIN}m): $branch"
+    return 0
+  fi
+  # Merged iff branch tip has no commits beyond the base branch.
+  if [ -z "$(git rev-list "$main".."$branch" 2>/dev/null)" ]; then
+    # No --force: both guards above have passed, so git refusing here means it
+    # sees something we did not. Believe git and keep the worktree.
+    if ! git worktree remove "$path" 2>/dev/null; then
+      echo "skip (git declined to remove — inspect by hand): $branch"
+      return 0
+    fi
+    git branch -D "$branch" >/dev/null 2>&1 || true
+    echo "reaped: $branch"
+    reaped=$((reaped+1))
+  else
+    echo "keep (unlanded, $(git rev-list --count "$main".."$branch") commits ahead): $branch"
+  fi
+}
+while IFS= read -r line; do
+  case "$line" in
+    worktree\ *) flush; path=${line#worktree }; branch=""; locked=0 ;;
+    branch\ refs/heads/*) branch=${line#branch refs/heads/} ;;
+    locked*) locked=1 ;;
+    "") : ;;
+  esac
+done < <(git worktree list --porcelain; echo)
+flush
+
+git worktree prune
+echo "cw-clean: done — $reaped worktree(s) reaped."

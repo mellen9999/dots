@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# pii-scan — block personal/doxxing info from entering git history.
+# called by the global pre-commit hook (and heatsync's own hook). matching logic
+# lives in the shared `pii-match` (so the commit guard and `leakcheck` agree):
+#   - number terms match in ANY format (5551234567 also catches "555-123-4567" etc.)
+#   - other terms (name/address/email/city) match case-insensitively
+# your terms live in a private, un-synced denylist; populate it with `pii-setup`:
+#   $HOME/.local/share/secure/pii-denylist
+#
+# livestream-safe: a hit reports the FILE and rule type only, never the value.
+# bypass (rare, deliberate):  git commit --no-verify
+
+DENY="${PII_DENYLIST:-$HOME/.local/share/secure/pii-denylist}"
+PIIMATCH="$(dirname "$(readlink -f "$0")")/pii-match"
+# generic catch-alls on top of the denylist.
+SSN_RE='[0-9]{3}-[0-9]{2}-[0-9]{4}'
+COORD_RE='-?[0-9]{1,3}\.[0-9]{4,},[[:space:]]*-?[0-9]{1,3}\.[0-9]{4,}'
+# ...minus normalized coordinates: BOTH components under one degree, i.e. matching
+# NORM_RE below. Those are screen/texture/UV fractions, endemic in graphics and
+# layout code, and they cannot be a location worth hiding — lat AND lon both
+# sub-degree is open ocean off Null Island. Requiring *both* to be sub-degree keeps
+# every real pair: a London coord's whole-degree latitude still trips the rule.
+# (No literal example here on purpose — this file has to pass its own scan.)
+NORM_RE='^-?0\.[0-9]{4,},[[:space:]]*-?0\.[0-9]{4,}$'
+hit=0
+
+files="$(git diff --cached --name-only --diff-filter=ACM)"
+[ -z "$files" ] && exit 0
+[ -f "$DENY" ] || echo "⚠ pii: no denylist at $DENY — personal-term check SKIPPED. run: pii-setup" >&2
+
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  blob="$(git show ":$f" 2>/dev/null)" || continue
+  if [ -x "$PIIMATCH" ] && printf '%s' "$blob" | "$PIIMATCH"; then
+    echo "  ✖ pii: $f contains a denylisted personal term" >&2
+    hit=1
+  fi
+  if printf '%s' "$blob" | grep -aEq "$SSN_RE"; then
+    echo "  ✖ pii: $f matches a PII pattern (SSN)" >&2
+    hit=1
+  fi
+  # -o then drop the normalized pairs: a hit needs one surviving coord pair, so a
+  # file full of UV fractions passes while one real coord among them still blocks.
+  # -e is required, not style: COORD_RE opens with "-?" and grep reads a bare
+  # leading dash as an option.
+  if printf '%s' "$blob" | grep -aEo -e "$COORD_RE" | grep -aEqv -e "$NORM_RE"; then
+    echo "  ✖ pii: $f matches a PII pattern (GPS coords)" >&2
+    hit=1
+  fi
+done <<< "$files"
+
+if [ "$hit" -ne 0 ]; then
+  echo "✖ pii-scan: staged changes contain personal info — commit blocked." >&2
+  echo "  remove it, restage. deliberate override: git commit --no-verify" >&2
+  exit 1
+fi
+exit 0

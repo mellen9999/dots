@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# pii-setup — guided one-shot loader for the private PII denylist. prompts for each
+# identity field with HIDDEN input (nothing shows on screen, scrollback, or history),
+# so you populate the whole guard in one command without typing anything into chat.
+# blank = skip a field. re-runnable: dedupes at the end. values never leave the file.
+set -uo pipefail
+DENY="${PII_DENYLIST:-$HOME/.local/share/secure/pii-denylist}"
+mkdir -p "$(dirname "$DENY")"; chmod 700 "$(dirname "$DENY")"
+[ -f "$DENY" ] || printf '# private pii denylist — blocks these terms from any git commit, forever.\n# NOT synced, NOT in git. one term per line. # = comment.\n' > "$DENY"
+
+add() { [ -n "$1" ] && printf '%s\n' "$1" >> "$DENY"; }
+ask() { local v; printf '%s (hidden, enter to skip): ' "$1" >&2; IFS= read -rs v; echo >&2; add "$v"; }
+
+echo "each prompt is hidden — type the value, press enter. blank skips it." >&2
+ask "full legal name"
+ask "street address (number + street)"
+ask "city"
+ask "zip"
+ask "phone number"
+ask "personal email (not the heatsync.org one)"
+ask "mom's full name"
+# extra terms / old aliases tied to your real identity — loop until blank
+while :; do
+  printf 'additional term / old alias (hidden, blank to finish): ' >&2
+  IFS= read -rs v; echo >&2
+  [ -z "$v" ] && break
+  add "$v"
+done
+
+# dedupe, keep comments at top, preserve order of first occurrence
+tmp="$(mktemp)"
+{ grep -E '^[[:space:]]*#' "$DENY"; grep -vE '^[[:space:]]*(#|$)' "$DENY" | awk '!seen[$0]++'; } > "$tmp"
+mv "$tmp" "$DENY"; chmod 600 "$DENY"
+echo "✓ denylist now holds $(grep -cvE '^[[:space:]]*(#|$)' "$DENY") term(s). they can never be committed to any repo." >&2

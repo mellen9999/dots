@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# pii-match — read content on stdin; exit 0 if it contains any denylisted personal
+# term, else 1. shared by pii-scan (commit guard) and leakcheck (audit) so the two
+# match IDENTICALLY.
+#
+# matching rules:
+#   - number terms (only digits + phone separators, >=7 digits, e.g. a phone or SSN)
+#     match FORMAT-AGNOSTICALLY across real phone separators only — space . - ( ) +,
+#     up to 3 between digits: 5551234567 also catches "555-123-4567", "(555) 123.4567",
+#     "+1 555 123 4567", etc. store the number in any format; all formats are caught.
+#     (Deliberately NOT [^0-9]* — that matched a number's digits scattered across an
+#     arbitrary binary blob in git history, e.g. a committed image read as text after
+#     NUL-stripping, firing a phantom PII alarm. Restricting the gap class kills that.)
+#   - everything else (name, address, email, city, mom's name) = case-insensitive
+#     fixed-string match.
+# zip (5 digits) stays literal — too short to safely fuzz.
+DENY="${PII_DENYLIST:-$HOME/.local/share/secure/pii-denylist}"
+[ -f "$DENY" ] || exit 1
+
+# tr NUL→newline first: `$(...)` silently strips NUL bytes, which would glue the
+# bytes on either side together — a binary blob in git history (e.g. a committed
+# image) then collapses into a phantom "number" and fires a false PII alarm. NUL
+# only appears in binary; real text is untouched, and fragmenting binary on NUL
+# stops spurious cross-byte matches.
+content="$(tr '\0' '\n')"
+[ -z "$content" ] && exit 1
+
+literals="" rx=""
+while IFS= read -r term; do
+  case "$term" in ''|\#*) continue;; esac
+  digits="$(printf '%s' "$term" | tr -cd '0-9')"
+  nonsep="$(printf '%s' "$term" | tr -d '0-9()+.eExX[:space:]-')"   # leftover after removing digits + phone separators (allow ext markers)
+  if [ -z "$nonsep" ] && [ "${#digits}" -ge 7 ]; then
+    # separator-tolerant regex: d1[ .()+-]{0,3}d2... — real phone separators only,
+    # bounded gap, so coincidental digit runs in binary blobs don't match.
+    pat="$(printf '%s' "$digits" | sed 's/[0-9]/&[ .()+-]\{0,3\}/g')"
+    rx="${rx:+$rx|}$pat"
+  else
+    literals="${literals}${term}"$'\n'
+  fi
+done < "$DENY"
+
+# -w = whole-word match: stops short literals (zip, common words) matching as a
+# substring inside longer tokens, while still catching the real PII as a word.
+if [ -n "$literals" ] && printf '%s' "$content" | grep -qiFwf <(printf '%s' "$literals"); then exit 0; fi
+if [ -n "$rx" ] && printf '%s' "$content" | grep -qE "$rx"; then exit 0; fi
+exit 1

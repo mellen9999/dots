@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# cw-name — print a readable, unique tmux window name.
+#
+#   cw-name .  "fix the emote rendering"   # heatsync-emotes  (folder = cwd)
+#   cw-name bg "scan the nginx logs"       # bg-nginx
+#
+# Same naming cw uses, so every tab Claude opens reads the same way. Logic lives
+# in cw-lib.sh; this is only the command-line door onto it.
+set -euo pipefail
+# shellcheck source=cw-lib.sh
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/cw-lib.sh"
+
+folder="${1-.}"
+if [ "$folder" = . ]; then folder=$(basename "$PWD"); fi
+cw_window_name "$folder" "${2-}"

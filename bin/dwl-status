@@ -1,0 +1,22 @@
+#!/bin/bash
+# status feeder for dwl bar — piped into dwl via stdin
+# shows: [MIC]/[MUTED] [STREAM] date/time
+
+while true; do
+  parts=""
+
+  # system mic mute indicator
+  if wpctl get-volume @DEFAULT_SOURCE@ 2>/dev/null | grep -q MUTED; then
+    parts="[MUTED]"
+  else
+    parts="[MIC]"
+  fi
+
+  # stream indicator
+  if pgrep -x gpu-screen-rec > /dev/null; then
+    parts="$parts [STREAM]"
+  fi
+
+  echo "$parts $(date '+%a %b %d %H:%M')"
+  sleep 1
+done

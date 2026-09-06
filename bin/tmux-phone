@@ -1,0 +1,27 @@
+#!/bin/sh
+# second view of the main tmux session, sized independently.
+#
+# a plain `tmux attach` from the titan forces every pane on the desktop down to the
+# phone's width. a GROUPED session shares the same windows but keeps its own size and
+# its own current-window, so the desktop is untouched. `aggressive-resize on` in
+# .tmux.conf is what makes the per-client sizing actually apply.
+#
+# usage from the phone:  mosh heatpc -- tmux-phone
+set -eu
+
+VIEW=phone
+
+if tmux has-session -t "=$VIEW" 2>/dev/null; then
+  exec tmux attach -t "=$VIEW"
+fi
+
+# newest non-view session wins; falls back to creating one if tmux is cold
+MAIN=$(tmux list-sessions -F '#{session_created} #{session_name}' 2>/dev/null \
+  | grep -v " $VIEW\$" | sort -rn | head -1 | cut -d' ' -f2- || true)
+
+if [ -z "${MAIN:-}" ]; then
+  exec tmux new-session -s "$VIEW"
+fi
+
+tmux new-session -d -t "$MAIN" -s "$VIEW"
+exec tmux attach -t "=$VIEW"

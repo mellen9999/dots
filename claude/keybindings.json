@@ -1,0 +1,29 @@
+{
+  "$schema": "https://platform.claude.com/docs/schemas/claude-code/keybindings.json",
+  "$docs": "https://code.claude.com/docs/en/keybindings",
+  "bindings": [
+    {
+      "context": "Chat",
+      "bindings": {
+        "ctrl+enter": "chat:submit",
+        "escape": "chat:cancel",
+        "up": null,
+        "down": null,
+        "ctrl+p": "history:previous",
+        "ctrl+n": "history:next"
+      }
+    },
+    {
+      "context": "Task",
+      "bindings": {
+        "ctrl+g": "task:background"
+      }
+    },
+    {
+      "context": "Global",
+      "bindings": {
+        "ctrl+r": "history:search"
+      }
+    }
+  ]
+}

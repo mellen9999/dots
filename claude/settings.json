@@ -1,0 +1,188 @@
+{
+  "cleanupPeriodDays": 30,
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
+    "CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION": "false"
+  },
+  "includeGitInstructions": false,
+  "permissions": {
+    "defaultMode": "auto"
+  },
+  "model": "sonnet",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "F=$(jq -r \"(.tool_input.file_path // .tool_input.notebook_path) // empty\"); [ -n \"$F\" ] && [ -f \"$F\" ] && D=\"$HOME/.claude/backups/$(date +%F)\" && mkdir -p \"$D\" && cp -- \"$F\" \"$D/$(basename -- \"$F\").$(date +%H%M%S).bak\" 2>/dev/null; true",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C=$(jq -r \".tool_input.command // empty\"); printf \"%s\" \"$C\" | grep -qE \"(^|[;&|]|&&) *(sudo +)?rm +(-[a-zA-Z]+ +)*-[a-zA-Z]*[rf][a-zA-Z]* +(/|~|\\\\\\$HOME)\\\\*?( |;|$)|(^|[;&|]) *(sudo +)?(dd +if=.* +of=/dev/|mkfs\\\\.)|:\\\\(\\\\)\\\\{ *:\\\\|:\" && { echo \"BLOCKED: destructive command\" >&2; exit 2; }; true"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/hq-status working 2>/dev/null; true"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{ echo '=== SESSION CONTEXT ==='; echo \"host: $(hostname)\"; echo \"cwd: $(pwd)\"; if git rev-parse --git-dir >/dev/null 2>&1; then echo \"branch: $(git branch --show-current 2>/dev/null)\"; D=$(git status --short 2>/dev/null | wc -l); echo \"modified: $D files\"; git status --short 2>/dev/null | head -8; echo '--- recent commits ---'; git log --oneline -5 2>/dev/null; fi; echo '--- tmux windows ---'; tmux list-windows 2>/dev/null | head -8; PRESERVE=~/.claude/projects/$(echo $PWD | tr / -)/preserve.md; [ -f \"$PRESERVE\" ] && { echo '--- preserved from prior session ---'; cat \"$PRESERVE\"; }; true; } 2>&1"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -e '.source != \"compact\"' >/dev/null 2>&1 && $HOME/.local/bin/hq-status waiting </dev/null 2>/dev/null; true"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "S=$HOME/.claude/selfcheck; H=$(cat $S/run.sh $HOME/.claude/settings.json $HOME/.claude/hooks/* $HOME/.claude/agents/*.md 2>/dev/null | cksum); [ \"$H\" = \"$(cat $S/.stamp 2>/dev/null)\" ] || { O=$(sh $S/run.sh -q 2>&1) && printf \"%s\" \"$H\" > $S/.stamp || { echo \"SELFCHECK FAILED — claude setup is broken:\"; echo \"$O\"; }; }; true",
+            "timeout": 20
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/release-state.sh 2>/dev/null; true",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "F=~/.claude/projects/$(echo $PWD | tr / -)/preserve.md; mkdir -p \"$(dirname $F)\"; { echo '# Pre-compact preserve'; date; echo; echo '## cwd'; pwd; echo; echo '## modified files'; git status --short 2>/dev/null; echo; echo '## recent commits'; git log --oneline -10 2>/dev/null; } > \"$F\"; true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "paplay --volume=9800 ~/.claude/beep.ogg 2>/dev/null & notify-send -t 4000 'Claude' 'Done' 2>/dev/null; true"
+          },
+          {
+            "type": "command",
+            "command": "bun ~/.claude/hooks/copy-last-code.js",
+            "timeout": 3
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/context-nudge.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/hq-status done 2>/dev/null; true"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"[$(date)] session-end cwd=$(pwd)\" >> ~/.claude/session-log.txt; git status --short >> ~/.claude/session-log.txt 2>/dev/null; true",
+            "async": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/hq-status gone 2>/dev/null; true"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/hq-status working 2>/dev/null; true"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/hq-status waiting 2>/dev/null; true"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-code-plugins": false,
+    "code-review@claude-code-plugins": true,
+    "security-guidance@claude-code-plugins": true
+  },
+  "outputStyle": "Concise",
+  "feedbackSurveyRate": 0,
+  "tui": "fullscreen",
+  "voice": {
+    "enabled": true,
+    "mode": "hold"
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "dark-ansi",
+  "editorMode": "vim",
+  "teammateMode": "tmux",
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true,
+  "voiceEnabled": true
+}

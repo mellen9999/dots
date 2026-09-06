@@ -1,0 +1,21 @@
+// Git internals — must never sync (causes ref/HEAD chaos across machines)
+// (the .gitignore *file* still syncs since this only matches the .git dir)
+.git
+
+// Claude runtime data — machine-local, high-churn, no sync value
+claude/history.jsonl
+claude/history.sync-conflict-*
+claude/debug
+claude/telemetry
+claude/session-env
+claude/paste-cache
+claude/tasks
+claude/plans
+claude/todos
+claude/shell-snapshots
+claude/stats-cache.json
+claude/statsig
+claude/file-history
+claude/cache
+claude/sessions
+claude/security_warnings_state_*

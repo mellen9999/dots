@@ -1,0 +1,15 @@
+{
+  "SavingBrowserHistoryDisabled": true,
+  "NewTabPageLocation": "file://$HOME/sync/config/config/newtab.html",
+  "SearchSuggestEnabled": false,
+  "PasswordManagerEnabled": false,
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "DefaultNotificationsSetting": 2,
+  "SyncDisabled": true,
+  "MetricsReportingEnabled": false,
+  "BackgroundModeEnabled": false,
+  "PromotionalTabsEnabled": false,
+  "ShoppingListEnabled": false,
+  "UrlKeyedAnonymizedDataCollectionEnabled": false
+}
