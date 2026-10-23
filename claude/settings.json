@@ -9,7 +9,7 @@
   "permissions": {
     "defaultMode": "auto"
   },
-  "model": "opus[1m]",
+  "model": "sonnet",
   "hooks": {
     "PreToolUse": [
       {
@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{ echo '=== SESSION CONTEXT ==='; echo \"host: $(hostname)\"; echo \"cwd: $(pwd)\"; if git rev-parse --git-dir >/dev/null 2>&1; then echo \"branch: $(git branch --show-current 2>/dev/null)\"; D=$(git status --short 2>/dev/null | wc -l); echo \"modified: $D files\"; git status --short 2>/dev/null | head -8; echo '--- recent commits ---'; git log --oneline -5 2>/dev/null; fi; echo '--- tmux windows ---'; tmux list-windows 2>/dev/null | head -8; PRESERVE=~/.claude/projects/$(echo $PWD | tr / -)/preserve.md; [ -f \"$PRESERVE\" ] && { echo '--- preserved from prior session ---'; cat \"$PRESERVE\"; }; true; } 2>&1"
+            "command": "{ echo '=== SESSION CONTEXT ==='; echo \"host: $(hostname)\"; echo \"cwd: $(pwd)\"; if git rev-parse --git-dir >/dev/null 2>&1; then echo \"branch: $(git branch --show-current 2>/dev/null)\"; D=$(git status --short 2>/dev/null | wc -l); echo \"modified: $D files\"; git status --short 2>/dev/null | head -8; echo '--- recent commits ---'; git log --oneline -5 2>/dev/null; fi; echo '--- tmux windows ---'; tmux list-windows 2>/dev/null | head -8; PRESERVE=~/.claude/projects/$(echo $PWD | tr / -)/preserve.md; [ -f \"$PRESERVE\" ] && { echo '--- preserved from prior session ---'; cat \"$PRESERVE\"; }; [ -x ci/xos-ci-status ] && { echo '--- xos ci ---'; ci/xos-ci-status 2>/dev/null; }; true; } 2>&1"
           }
         ]
       },
@@ -167,7 +167,8 @@
     "command": "bash ~/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
-    "frontend-design@claude-code-plugins": false
+    "frontend-design@claude-code-plugins": false,
+    "clangd-lsp@claude-plugins-official": true
   },
   "outputStyle": "Concise",
   "feedbackSurveyRate": 0,
@@ -183,5 +184,10 @@
   "teammateMode": "tmux",
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "modelSettings": {
+    "claude-sonnet-5-5": {
+      "autoCompactWindow": 400000
+    }
+  }
 }

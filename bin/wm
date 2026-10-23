@@ -25,6 +25,7 @@ heatpc=false; [[ $(hostname) == heatpc ]] && heatpc=true
 exec dwl-status | dwl -s "
   /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
   mako &
+  clip watch &
   $($heatpc && echo '~/.local/bin/sync-bin/steam-bg &
   swayidle -w timeout 1500 waylock timeout 1800 ~/.local/bin/power-idle resume ~/.local/bin/power-performance &
   wlr-randr --output DP-3 --mode 1920x1080@498.932007 &')

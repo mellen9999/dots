@@ -7,7 +7,7 @@ model: haiku
 
 # Sync Config
 
-1. `cd ~/sync/config && git status --short`
+1. `cd ~/sync/config && claude-mirror && git status --short` (mirror backs up ~/.claude first; a gate failure stops everything)
 2. If clean, report and exit.
 3. `git add -A`
 4. Generate terse conventional commit message from changed files.

@@ -153,9 +153,13 @@ static const Key keys[] = {
 	{ 0, XKB_KEY_XF86AudioMute,         spawn, SHCMD("fn-ctl mute") },
 	{ 0, XKB_KEY_XF86AudioMicMute,      spawn, SHCMD("fn-ctl mic") },
 
-	/* screenshots */
-	{ MODKEY,                    XKB_KEY_s, spawn, SHCMD("grim -g \"$(slurp)\" - | wl-copy") },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_S, spawn, SHCMD("grim - | wl-copy") },
+	/* screenshots + recording (saved to ~/shots) */
+	{ MODKEY,                    XKB_KEY_s, spawn, SHCMD("shot") },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_S, spawn, SHCMD("shot full") },
+	{ MODKEY,                    XKB_KEY_r, spawn, SHCMD("rec") },
+
+	/* clipboard history */
+	{ MODKEY,                    XKB_KEY_v, spawn, SHCMD("clip") },
 
 	/* system mic mute toggle */
 	{ MODKEY, XKB_KEY_g, spawn, SHCMD("mic-toggle") },
