@@ -1,0 +1,17 @@
+#!/bin/bash
+# toggle region screen recording -> ~/shots/rec-<time>.mp4 (no audio, 60 fps)
+# press once: pick a region and start. press again: stop and save. dwl: Mod+r
+set -euo pipefail
+
+if pkill -INT -x wf-recorder; then
+  exit 0 # the first run (still waiting on wf-recorder) does the saving + notify
+fi
+
+dir=$HOME/shots
+mkdir -p "$dir"
+f=$dir/rec-$(date +%Y%m%d-%H%M%S).mp4
+
+geo=$(slurp) || exit 0 # esc = cancelled, not an error
+notify-send -t 1500 "rec started" "press super+r to stop"
+wf-recorder -r 60 -g "$geo" -f "$f" >/dev/null 2>&1 || true
+notify-send -t 3000 "rec saved" "${f/#$HOME/\~}"

@@ -1,0 +1,20 @@
+#!/bin/bash
+# clipboard history, kept in RAM only (gone on reboot), text only, last 100
+# usage: clip         pick an entry and copy it again   (dwl: Mod+v)
+#        clip watch   record copies — started once by wm
+#        clip wipe    forget everything now
+set -euo pipefail
+
+db=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/cliphist.db
+ch=(cliphist -db-path "$db" -max-items 100)
+
+case ${1:-pick} in
+  watch) exec wl-paste --type text --watch "${ch[@]}" store ;;
+  wipe) "${ch[@]}" wipe ;;
+  pick)
+    sel=$("${ch[@]}" list | wmenu -l 12 -p clip \
+      -f 'Terminus Bold 10' -N '#000000' -n '#ffffff' -S '#ffffff' -s '#000000') || exit 0
+    printf '%s' "$sel" | "${ch[@]}" decode | wl-copy
+    ;;
+  *) echo "usage: clip [watch|wipe]" >&2; exit 1 ;;
+esac
