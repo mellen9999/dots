@@ -1,44 +1,170 @@
 #!/usr/bin/env bash
-# offline ai fallback — llama.cpp + qwen3-coder-30b, no network needed
+# local coding agent — llama.cpp + qwen3-coder-30b. works with no network.
+# server lifecycle is a systemd user unit so it survives reboots and hands vram back
+# when idle; tuning lives in ~/sync/config/llama-server.env, nothing is hardcoded here.
 set -euo pipefail
 
-PORT=11435
-MODEL_REF=${AI_MODEL:-qwen3-coder/30b}
-MANIFEST=/var/lib/ollama/manifests/registry.ollama.ai/library/$MODEL_REF
+ENVFILE=$HOME/sync/config/llama-server.env
+UNIT=llama-server.service
 LOG=${XDG_STATE_HOME:-$HOME/.local/state}/ai-llama.log
-CTX=${AI_CTX:-32768}
+OPENCODE_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/opencode
+SELF=$(readlink -f "$0")
 
-up() { curl -sf -m 2 "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; }
+# --- non-heatpc hosts keep their own wrapper (mele runs a cpu-only 4B) ----------
+if [ "$(hostname)" != "heatpc" ]; then
+  for alt in "$HOME/scripts/ai" "$HOME/.local/bin/ai-local"; do
+    [ -x "$alt" ] && [ "$(readlink -f "$alt")" != "$SELF" ] && exec "$alt" "$@"
+  done
+  echo "ai: no local wrapper for $(hostname) — this script is heatpc-only" >&2
+  exit 1
+fi
 
-stop() {
-  pkill -f "llama-server .*--port $PORT" 2>/dev/null || true
-  echo "ai: stopped, vram freed"
-}
+[ -r "$ENVFILE" ] || { echo "ai: missing $ENVFILE" >&2; exit 1; }
+# shellcheck disable=SC1090
+set -a; . "$ENVFILE"; set +a
+: "${AI_PORT:=11435}"
+: "${AI_ALIAS:=qwen3-coder}"
+# built-in tools only, and only the ones a local coding turn needs. no Task
+# (subagents fan out against a single llama.cpp slot), no web tools (offline),
+# no TodoWrite (it drove the model into re-marking the same item every turn).
+: "${AI_TOOLS:=Bash,Read,Edit,Write,Glob,Grep}"
+
+up() { curl -sf -m 2 "http://127.0.0.1:$AI_PORT/health" >/dev/null 2>&1; }
 
 start() {
   up && return 0
-  [ -r "$MANIFEST" ] || { echo "ai: no manifest at $MANIFEST" >&2; exit 1; }
-  local blob
-  blob=$(python3 -c 'import sys,json;d=json.load(open(sys.argv[1]));print(max(d["layers"],key=lambda x:x["size"])["digest"].replace(":","-"))' "$MANIFEST")
-  local gguf=/var/lib/ollama/blobs/$blob
-  [ -r "$gguf" ] || { echo "ai: model blob unreadable: $gguf" >&2; exit 1; }
-
-  mkdir -p "$(dirname "$LOG")"
-  echo "ai: starting llama-server (${MODEL_REF}, ctx $CTX)..." >&2
-  MANGOHUD=0 setsid nohup llama-server -m "$gguf" --jinja -c "$CTX" -ngl 99 \
-    --host 127.0.0.1 --port "$PORT" --alias "${MODEL_REF%%/*}" \
-    >"$LOG" 2>&1 </dev/null & disown
-
-  for _ in $(seq 1 60); do
-    up && { echo "ai: ready on :$PORT" >&2; return 0; }
+  [ -r "$AI_GGUF" ] || { echo "ai: model not readable: $AI_GGUF" >&2; exit 1; }
+  echo "ai: starting model (ctx $AI_CTX, ncmoe $AI_NCMOE)..." >&2
+  systemctl --user start "$UNIT"
+  for _ in $(seq 1 90); do
+    up && { echo "ai: ready on :$AI_PORT" >&2; return 0; }
+    systemctl --user is-active --quiet "$UNIT" || break
     sleep 2
   done
-  echo "ai: server failed to come up — see $LOG" >&2; exit 1
+  echo "ai: server failed to come up — see $LOG" >&2
+  systemctl --user is-active --quiet "$UNIT" || journalctl --user -u "$UNIT" -n 20 --no-pager >&2
+  exit 1
 }
 
+stop() { systemctl --user stop "$UNIT" 2>/dev/null || true; echo "ai: stopped, vram freed"; }
+
+status() {
+  if up; then
+    local n; n=$(curl -sf -m 2 "http://127.0.0.1:$AI_PORT/v1/models" | grep -oP '"id"\s*:\s*"\K[^"]+' | head -1)
+    echo "ai: up on :$AI_PORT (${n:-?}, ctx $AI_CTX)"
+  else
+    echo "ai: down"
+  fi
+  systemctl --user is-active --quiet searxng.service \
+    && echo "ai: search backend up on :${SEARXNG_PORT}" \
+    || echo "ai: search backend down (started by \`ai --net\`)"
+  systemctl --user is-active llama-idle.timer >/dev/null 2>&1 \
+    && echo "ai: idle reaper armed (${AI_IDLE_MIN}m)" \
+    || echo "ai: idle reaper NOT armed — systemctl --user enable --now llama-idle.timer"
+}
+
+# server lifecycle — front-end agnostic, same words as always.
 case "${1:-}" in
-  stop)   stop ;;
-  status) up && echo "ai: up on :$PORT" || echo "ai: down" ;;
-  serve)  start ;;
-  *)      start; exec opencode run --agent local "$@" ;;
+  stop)   stop;   exit 0 ;;
+  status) status; exit 0 ;;
+  serve)  start;  exit 0 ;;
+  logs)   exec tail -f "$LOG" ;;
+esac
+
+# ---------------------------------------------------------------------------
+# front ends. default is claude code itself, pointed at the local model:
+# llama.cpp serves anthropic's /v1/messages natively (llama.cpp PR #17570), so
+# no proxy is involved. that buys the real thing — slash commands, skills,
+# plan mode, hooks, worktrees — instead of an imitation of it.
+# `--opencode` (and `--net`, whose search tool lives there) keeps the old path.
+# ---------------------------------------------------------------------------
+FRONT=claude
+case "${1:-}" in
+  --opencode) FRONT=opencode; shift ;;
+  --net)      FRONT=opencode ;;
+esac
+
+run_opencode() {
+  # opencode phones api.opencode.ai / models.dev on every run (update check, model
+  # catalog, lsp server downloads). none of that is wanted here: this is the offline
+  # fallback, and first-party-only is the rule. verified with `ss` that these leave
+  # 127.0.0.1:11435 as the only connection.
+  export OPENCODE_DISABLE_AUTOUPDATE=1
+  export OPENCODE_DISABLE_MODELS_FETCH=1
+  export OPENCODE_DISABLE_SHARE=1
+  export OPENCODE_DISABLE_EXTERNAL_SKILLS=1
+
+  local agent=local
+  if [ "${1:-}" = "--net" ]; then
+    agent=local-net; shift
+    # the `search` tool talks to a local searxng; bring it up with the model
+    systemctl --user is-active --quiet searxng.service || {
+      echo "ai: starting search backend..." >&2
+      systemctl --user start searxng.service || echo "ai: searxng failed to start — search will be unavailable" >&2
+    }
+  else
+    export OPENCODE_DISABLE_LSP_DOWNLOAD=1
+  fi
+  # `--interactive` is a split-footer TUI mode; piping it into a file bakes ansi
+  # into logs meant to be grepped. only ask for it when stdout is a terminal.
+  local tui=(); [ -t 1 ] && tui=(--interactive)
+
+  start
+  case "${1:-}" in
+    continue) shift; exec opencode run --agent "$agent" --continue "${tui[@]}" "$@" ;;
+    "")       exec opencode --agent "$agent" ;;
+    *)        exec opencode run --agent "$agent" "${tui[@]}" "$@" ;;
+  esac
+}
+
+run_claude() {
+  # a separate CLAUDE_CONFIG_DIR keeps this wholly away from the cloud setup:
+  # its own sessions, its own settings, none of the cloud profile's hooks or mcp
+  # servers. `--bare` then skips hooks, lsp, plugin sync, attribution, auto-memory
+  # and background prefetches, and forces the api-key auth path so nothing ever
+  # reaches for anthropic oauth while offline.
+  export CLAUDE_CONFIG_DIR=$HOME/sync/config/claude-local
+  export ANTHROPIC_BASE_URL="http://127.0.0.1:$AI_PORT"
+  export ANTHROPIC_API_KEY=local-unused            # any non-empty value short-circuits oauth
+  export ANTHROPIC_MODEL=$AI_ALIAS
+  export ANTHROPIC_SMALL_FAST_MODEL=$AI_ALIAS
+  export ANTHROPIC_DEFAULT_HAIKU_MODEL=$AI_ALIAS
+  export ANTHROPIC_DEFAULT_SONNET_MODEL=$AI_ALIAS
+  export ANTHROPIC_DEFAULT_OPUS_MODEL=$AI_ALIAS
+  export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 DISABLE_TELEMETRY=1 \
+         DISABLE_AUTOUPDATER=1 DISABLE_ERROR_REPORTING=1
+  export API_TIMEOUT_MS=${AI_TIMEOUT_MS:-600000}   # 30 t/s at best, 3-8 under cpu load
+  # claude code does not know this model, so it assumes a 200k window and would
+  # auto-compact against that — three times what the server actually holds. tell
+  # it the truth, minus a margin for the reply, or the overflow is silent.
+  export CLAUDE_CODE_MAX_CONTEXT_TOKENS=$(( ${AI_CTX:-65536} - 4096 ))
+
+  # the model's rules are one file, shared with the opencode front end rather than
+  # copied — plus the private context file and the project's own CLAUDE.md, which
+  # `--bare` deliberately stops auto-discovering.
+  local sys=""; local f
+  for f in "$OPENCODE_DIR/AGENTS.md" "$HOME/.local/share/ai/context.md" ./CLAUDE.md; do
+    [ -r "$f" ] && sys+=$(cat "$f")$'\n\n'
+  done
+
+  local args=(--bare --model "$AI_ALIAS" --strict-mcp-config --agents '{}'
+              --tools "$AI_TOOLS" --settings "$CLAUDE_CONFIG_DIR/settings.json")
+  [ -n "$sys" ] && args+=(--append-system-prompt "$sys")
+
+  start
+  case "${1:-}" in
+    continue) shift; exec claude "${args[@]}" --continue "$@" ;;
+    "")       exec claude "${args[@]}" ;;
+    # headless. the model does the work correctly and then cannot stop: measured
+    # on this box it fixed a one-line bug in seconds, then spent 13 more minutes
+    # re-running `bun test` and echoing "all tests passing" at itself. the turn cap
+    # is the backstop — the work is already on disk when it trips.
+    *)        exec claude "${args[@]}" --max-turns "${AI_MAX_TURNS:-16}" \
+                     --permission-mode bypassPermissions -p "$@" ;;
+  esac
+}
+
+case "$FRONT" in
+  opencode) run_opencode "$@" ;;
+  *)        run_claude "$@" ;;
 esac

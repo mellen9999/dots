@@ -5,7 +5,9 @@
 #     gitleaks flags test fixtures / entropy / public IDs too, so judge by change,
 #     not absolute count; the pre-commit hook already blocks new secrets).
 #   - PII: your private denylist + SSN/GPS-coord patterns over full history. This is
-#     the actionable alarm — a HIT on a REMOTE repo means it's already published.
+#     the actionable alarm — but only a HIT on a PUBLIC repo is actually published.
+#     Private-remote hits are reported and do NOT fail the run: a guard that cries
+#     wolf on every private repo is a guard that stops being read.
 # output is REDACTED — counts / yes-no only, never the value or its location.
 #
 # usage:  leakcheck [root-dir]   (default: $HOME)
@@ -27,16 +29,32 @@ fi
 [ -x "$GITLEAKS" ] || echo "⚠ gitleaks not found — secret audit skipped." >&2
 
 count() { grep -o '"RuleID"' "$1" 2>/dev/null | wc -l | tr -d ' '; }
+
+# local | private | PUBLIC. anything we cannot positively prove private reads as
+# PUBLIC — no gh, no auth, no network, a non-github remote: all stay loud. a guard
+# that guesses "private" when it cannot tell is a guard that fails open.
+visibility() {
+  local url="$1" slug
+  [ -z "$url" ] && { echo local; return; }
+  case "$url" in *github.com*) ;; *) echo PUBLIC; return;; esac
+  command -v gh >/dev/null 2>&1 || { echo PUBLIC; return; }
+  slug="$(printf '%s' "$url" | sed -E 's#^git@[^:]+:##; s#^https?://[^/]+/##; s#\.git$##')"
+  case "$(gh repo view "$slug" --json isPrivate -q .isPrivate 2>/dev/null)" in
+    true) echo private ;;
+    *)    echo PUBLIC ;;
+  esac
+}
 printf '%-22s %-7s %-9s %-9s %-4s %-4s\n' repo remote sec:tree sec:hist pii ptn
 printf '%.0s-' {1..62}; echo
 pii_alarms=0
+priv_hits=0
 while IFS= read -r gitdir; do
   repo="$(dirname "$gitdir")"; name="$(basename "$repo")"
   url="$(git -C "$repo" remote get-url origin 2>/dev/null)"
-  remote="local"; [ -n "$url" ] && remote="REMOTE"
+  remote="$(visibility "$url")"
   # LEAKCHECK_OWNER set => audit only repos you own; skip vendor clones (their
   # remote points elsewhere). your local-only repos are kept (no remote = yours).
-  if [ -n "${LEAKCHECK_OWNER:-}" ] && [ "$remote" = REMOTE ]; then
+  if [ -n "${LEAKCHECK_OWNER:-}" ] && [ -n "$url" ]; then
     case "$url" in *"$LEAKCHECK_OWNER"*) ;; *) continue;; esac
   fi
   st="-" sh="-" pii="-" ptn="-"
@@ -50,17 +68,22 @@ while IFS= read -r gitdir; do
   # stream history through grep (don't buffer big repos); -q early-exits
   if [ -n "$deny" ] && [ -x "$PIIMATCH" ]; then
     if git -C "$repo" log --all -p --no-color 2>/dev/null | "$PIIMATCH"; then
-      pii="HIT"; [ "$remote" = REMOTE ] && pii_alarms=$((pii_alarms+1)); else pii="·"; fi
+      pii="HIT"
+      [ "$remote" = PUBLIC ] && pii_alarms=$((pii_alarms+1))
+      [ "$remote" = private ] && priv_hits=$((priv_hits+1)); else pii="·"; fi
   fi
   if git -C "$repo" log --all -p --no-color 2>/dev/null | grep -qE "$PII_RE"; then
-    ptn="HIT"; [ "$remote" = REMOTE ] && pii_alarms=$((pii_alarms+1)); else ptn="·"; fi
+    ptn="HIT"
+    [ "$remote" = PUBLIC ] && pii_alarms=$((pii_alarms+1))
+    [ "$remote" = private ] && priv_hits=$((priv_hits+1)); else ptn="·"; fi
   printf '%-22s %-7s %-9s %-9s %-4s %-4s\n' "${name:0:22}" "$remote" "$st" "$sh" "$pii" "$ptn"
 done < <(find "$ROOT" -type d -name .git -prune 2>/dev/null | sort)
 
 echo
 echo "secret counts are a baseline (incl. fixtures/entropy) — investigate any that GREW; new ones are already blocked at commit."
+[ "$priv_hits" -gt 0 ] && echo "ⓘ $priv_hits personal-info hit(s) on PRIVATE repos — not published, not an alarm. scrub or accept on your own schedule."
 if [ "$pii_alarms" -gt 0 ]; then
-  echo "✖ $pii_alarms personal-info hit(s) on REMOTE repos — ALREADY PUBLISHED. inspect locally (values withheld), then scrub or accept."
+  echo "✖ $pii_alarms personal-info hit(s) on PUBLIC repos — ALREADY PUBLISHED. inspect locally (values withheld), then scrub or accept."
   exit 1
 fi
-echo "✓ no personal info (denylist/patterns) found in any repo history."
+echo "✓ no personal info (denylist/patterns) found in any PUBLIC repo history."

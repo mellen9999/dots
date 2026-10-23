@@ -170,6 +170,9 @@ SBAD=
 for d in "$CD"/skills/*; do
   [ -e "$d" ] || { SBAD="$SBAD $(basename "$d"):brokenlink"; continue; }
   n=$(basename "$d")
+  # skills/synced is claude code's own bucket of bundled skills, refreshed by
+  # the app and not authored here. it holds skills, it is not one.
+  [ "$n" = synced ] && continue
   [ -f "$d/SKILL.md" ] || { SBAD="$SBAD $n:noskillmd"; continue; }
   fm=$(awk '/^---[[:space:]]*$/{c++; next} c==1' "$d/SKILL.md")
   printf '%s' "$fm" | grep -qE "^name:[[:space:]]*$n[[:space:]]*$" || SBAD="$SBAD $n:name"

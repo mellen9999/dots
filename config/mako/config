@@ -1,9 +1,9 @@
 # not a terminal app — can't read the ANSI palette, so hex mirrors the heatsync palette by hand.
-# severity: low=gray 808080, normal=brand orange ff8700, high=red ff0000. full-contrast white text.
+# 8-color palette. severity: low=white, normal=yellow, high=red. white text.
 font=Terminus 11
 background-color=#000000
 text-color=#ffffff
-border-color=#808080
+border-color=#ffffff
 border-size=1
 border-radius=0
 padding=6
@@ -13,11 +13,11 @@ max-visible=4
 anchor=top-right
 
 [urgency=low]
-border-color=#808080
+border-color=#ffffff
 default-timeout=3000
 
 [urgency=normal]
-border-color=#ff8700
+border-color=#ffff00
 default-timeout=4000
 
 [urgency=high]

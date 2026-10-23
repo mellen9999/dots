@@ -4,24 +4,30 @@ exec &> >(tee -a /tmp/dwl.log)
 export XDG_CURRENT_DESKTOP=wlroots
 export XDG_SESSION_TYPE=wayland
 export MOZ_ENABLE_WAYLAND=1
+export XCURSOR_SIZE=36
 export MESA_SHADER_CACHE_MAX_SIZE=12G
 
 # GPU-specific VA-API driver
-if [[ $(hostname) == "heatpc" ]]; then
+if [[ $(hostname) == heat* ]]; then
   export LIBVA_DRIVER_NAME=radeonsi
 else
   export LIBVA_DRIVER_NAME=iHD
 fi
 
 # Power: performance mode on start (no wayland needed)
-~/.local/bin/power-performance
+[[ -x ~/.local/bin/power-performance ]] && ~/.local/bin/power-performance
+
+heatpc=false; [[ $(hostname) == heatpc ]] && heatpc=true
+
+[[ $(hostname) == heatlaptop ]] && export DWL_FONT='Terminus:bold:pixelsize=22'
 
 # Launch dwl — status piped to stdin, startup cmd runs after socket is ready
 exec dwl-status | dwl -s "
   /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
   mako &
+  $($heatpc && echo '~/.local/bin/sync-bin/steam-bg &
   swayidle -w timeout 1500 waylock timeout 1800 ~/.local/bin/power-idle resume ~/.local/bin/power-performance &
-  wlr-randr --output DP-3 --mode 1920x1080@498.932007 &
+  wlr-randr --output DP-3 --mode 1920x1080@498.932007 &')
   systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP &&
   systemctl --user start xdg-desktop-portal-wlr &
   foot

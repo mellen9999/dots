@@ -3,7 +3,8 @@
 # branch (resolved from origin, not assumed to be `main` — see cw-lib.sh).
 #
 # Rebases the branch onto the latest upstream default, then fast-forwards that
-# remote branch to it. A repo-scoped flock serializes concurrent lands from sibling worktrees:
+# remote branch to it. A flock on the shared git dir serializes concurrent lands
+# from sibling worktrees:
 # the first wins, later ones rebase on top of it instead of racing the push.
 # Build outputs are gitignored, so rebases don't hit phantom bundle conflicts.
 #
@@ -30,8 +31,12 @@ cw_has_origin || {
 base_ref=$(cw_base_ref)
 base_branch=$(cw_base_branch)
 
-repo_root=$(git rev-parse --show-toplevel)
-lock="/tmp/cw-land-$(printf %s "$repo_root" | sha1sum | cut -c1-12).lock"
+# Key the lock on the SHARED git dir, not on `--show-toplevel`: inside a worktree
+# the toplevel is that worktree's own path, so every sibling hashed to a different
+# /tmp file and the "repo-scoped" lock serialized nothing (and leaked one lock per
+# land). The common dir is identical for the primary checkout and every worktree.
+repo_common=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+lock="/tmp/cw-land-$(printf %s "$repo_common" | sha1sum | cut -c1-12).lock"
 exec 9>"$lock"
 echo "cw-land: acquiring land lock…"
 flock 9
@@ -46,8 +51,8 @@ echo "cw-land: ✓ $branch landed → $base_ref ($(git rev-parse --short HEAD)).
 
 # keep the primary checkout current — the unpacked ext / tooling load from ITS
 # working tree, and a stale one causes ghost-chasing (chronic-stale trap)
-main_co=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
-if [ -d "$main_co/.git" ] && [ "$main_co" != "$repo_root" ]; then
+main_co=$repo_common
+if [ -d "$main_co/.git" ] && [ "$main_co" != "$(git rev-parse --show-toplevel)" ]; then
   if git -C "$main_co" pull --ff-only -q origin "$base_branch" 2>/dev/null; then
     echo "cw-land: primary checkout ff'd to $base_ref"
   else

@@ -1,6 +1,6 @@
 # dots
 
-daily-driver linux config: dwl, foot, tmux, bash, mako, btop, mpv, chromium/vivaldi
+daily-driver linux config: dwl, foot, tmux, bash, mako, btop, mpv, chromium
 privacy hardening, and the claude code setup (hooks, skills, selfcheck) i actually run.
 
 pulled from a private monorepo — machine-specific infra (backups, NAS, router,
@@ -17,8 +17,6 @@ business tooling) stays out. this is the generic, reusable half.
 - **ananicy** — scheduling priorities so background work never outranks a game
 - **chromium** — privacy policy (no history sync, no password/autofill leak,
   no metrics) + a square/flat mono theme
-- **vivaldi** — a script that patches the live profile for the same
-  square/flat/private setup, plus the css that does it
 - **claude code** — settings, hooks (edit backups, destructive-command guard,
   context nudges), skills, and a selfcheck suite that actually *executes* every
   hook against a synthetic payload instead of assuming it still works

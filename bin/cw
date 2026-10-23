@@ -21,6 +21,36 @@ repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
 }
 cd "$repo_root"
 
+# A claude session must never reach the launcher below: `claude` is the LAST line
+# of this script and "$@" becomes its opening PROMPT, so `cw fix-thing` from a
+# session spawns an unattended bypass-permissions claude on "fix-thing". It has
+# happened twice. 2026-09-07 it implemented and committed a feature on its own
+# (caught only by the 600s tool timeout). 2026-10-06 an instafix responder ran
+# `cw 261006-sharp-librsvg` for a worktree and the child diagnosed the CVE,
+# deployed PROD and landed 486aab46f to main, unattended — then printed its own
+# summary into the parent's stdout, where it read as this script's output: a
+# first-person report of a deploy the parent never ran. Both times the work was
+# correct, which is exactly why a doctrine note did not stop it. Refuse FIRST,
+# before the worktree and tmux window exist, so there is nothing to clean up.
+# A human's terminal has no CLAUDECODE; only a session (or its child) does.
+if [[ -n "${CLAUDECODE:-}" && -z "${CW_ALLOW_NESTED:-}" ]]; then
+  cat >&2 <<'EOF'
+cw: refusing to launch — this is a claude session, and cw's last line is
+    `claude --permission-mode bypassPermissions "$@"`, so your argument would
+    become the PROMPT of a nested, unattended, deploy-capable claude.
+
+    To get a worktree from a session, use cw's git lines only:
+      name="$(basename "$(git rev-parse --show-toplevel)")-$(date +%y%m%d-%H%M%S)-$$"
+      git -C "$(git rev-parse --show-toplevel)" fetch -q origin
+      git -C "$(git rev-parse --show-toplevel)" worktree add -q \
+        -b "claude/$name" ".worktrees/$name" origin/main
+
+    cw-land / cw-clean are safe from a session — they do not launch claude.
+    Deliberate nesting (a human driving it): CW_ALLOW_NESTED=1 cw ...
+EOF
+  exit 1
+fi
+
 # Refresh the base so the worktree starts from current upstream (offline → local).
 git fetch -q origin 2>/dev/null || true
 base=$(cw_base_ref) || {

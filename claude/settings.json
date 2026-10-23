@@ -9,7 +9,7 @@
   "permissions": {
     "defaultMode": "auto"
   },
-  "model": "sonnet",
+  "model": "opus[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -167,9 +167,7 @@
     "command": "bash ~/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
-    "frontend-design@claude-code-plugins": false,
-    "code-review@claude-code-plugins": true,
-    "security-guidance@claude-code-plugins": true
+    "frontend-design@claude-code-plugins": false
   },
   "outputStyle": "Concise",
   "feedbackSurveyRate": 0,
@@ -181,6 +179,7 @@
   "skipDangerousModePermissionPrompt": true,
   "theme": "dark-ansi",
   "editorMode": "vim",
+  "switchModelsOnFlag": true,
   "teammateMode": "tmux",
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,

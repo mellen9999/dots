@@ -98,5 +98,30 @@ cmdchamp() {
   return $rc
 }
 
+# push an exact command onto titan's android clipboard. payload rides ssh stdin,
+# never a terminal or a shell arg, so nothing mangles it (unlike a paste through
+# foot). no arg -> sends this box's clipboard; with args -> that literal string.
+# ssh, not mosh: mosh is interactive-only and can't pipe stdin. termux-clipboard-set
+# is async (~<1s) -- paste on the phone a beat later.
+titanclip() { { [ "$#" -gt 0 ] && printf %s "$*" || wl-paste -n; } | ssh titan termux-clipboard-set; }
+
+# xos build + selftest with a scrollable log and a failures summary at the end,
+# so a fail is readable without scrollback (mosh eats it). no arg -> `all` then
+# selftest; args -> that build.sh verb only (e.g. `xosbuild ci`). the passphrase
+# prompt still works -- tee only captures stdout, `read` still reads the tty. NEVER
+# put the passphrase on the command line (shell history + ps leak it).
+xosbuild() {
+	local log=~/xos-build.log rc
+	( cd ~/projects/xos || exit 1
+	  if [ "$#" -gt 0 ]; then ./build.sh "$@"; else ./build.sh all && ./selftest.sh; fi ) 2>&1 | tee "$log"
+	rc=${PIPESTATUS[0]}
+	echo; echo "=== exit $rc; failures ==="
+	# a gate FAIL, a selftest bad, a repro miss, or a build error/abort -- and if
+	# the run died with none of those words matched, show the tail so nothing hides.
+	grep -niE 'FAIL|not reproducible|error:|abort|refus' "$log" \
+		|| { [ "$rc" = 0 ] && echo '(clean)' || { echo '(no matched line -- tail:)'; tail -20 "$log"; }; }
+	return "$rc"
+}
+
 # === Local overrides ===
 [[ -f ~/.bashrc.local ]] && source ~/.bashrc.local

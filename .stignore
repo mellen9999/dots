@@ -19,3 +19,9 @@ claude/file-history
 claude/cache
 claude/sessions
 claude/security_warnings_state_*
+claude/backups
+
+// Claude transcripts are machine-local — only the memory/ subdirs cross machines
+!claude/projects/*/memory
+!claude/projects/*/memory/**
+claude/projects/*/*
