@@ -24,7 +24,7 @@ PROMPT_COMMAND='__e=$?; history -a'
 # mode indicator (white=insert, red=normal) comes from .inputrc; PS1 adds the last
 # exit code in red, only when it failed. \001/\002 = readline's non-printing markers
 # (\[ \] don't work inside a command substitution)
-__ps1() { ((__e)) && printf '\001\e[91m\002 %s\001\e[0m\002' "$__e"; }
+__ps1() { ((__e)) && printf '\001\e[31m\002 %s\001\e[0m\002' "$__e"; }
 PS1='$(__ps1) '
 
 # === Tools ===
