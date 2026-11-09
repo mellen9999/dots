@@ -1,0 +1,2 @@
+# disk-health (user timer) reads drive health unattended: read-only commands only
+@USER@ ALL=(root) NOPASSWD: /usr/bin/smartctl --scan, /usr/bin/smartctl -H /dev/*, /usr/bin/smartctl -A /dev/*, /usr/bin/btrfs device stats --check *, /usr/bin/btrfs scrub status *

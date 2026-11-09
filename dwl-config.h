@@ -152,6 +152,7 @@ static const Key keys[] = {
 	{ 0, XKB_KEY_XF86AudioLowerVolume,  spawn, SHCMD("fn-ctl vol-down") },
 	{ 0, XKB_KEY_XF86AudioMute,         spawn, SHCMD("fn-ctl mute") },
 	{ 0, XKB_KEY_XF86AudioMicMute,      spawn, SHCMD("fn-ctl mic") },
+	{ 0, XKB_KEY_XF86TouchpadToggle,     spawn, SHCMD("fn-ctl touchpad") },
 
 	/* screenshots + recording (saved to ~/shots) */
 	{ MODKEY,                    XKB_KEY_s, spawn, SHCMD("shot") },

@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# /tmp on this box is tmpfs (RAM). stale scratchpads there starve the machine and
+# surface as chromium SIGTRAP / SIGBUS / a Bash tool that fails on `echo`.
+# routine pass reaps day-old junk; pressure pass (>=70% used) drops that to 3h.
+# never touches a path any live process holds open.
+set -uo pipefail
+
+root=${TMP_REAP_ROOT:-/tmp/claude-@UID@}
+use=${TMP_REAP_FORCE_PCT:-$(df --output=pcent /tmp | tail -1 | tr -dc '0-9')}
+
+if (( use >= 70 )); then mode=pressure; scratch_min=180;  dl_min=30
+else                     mode=routine;  scratch_min=1440; dl_min=120; fi
+
+mapfile -t held < <(
+  { readlink -f /proc/[0-9]*/cwd /proc/[0-9]*/fd/* 2>/dev/null; } \
+    | grep "^/tmp/" | sort -u
+)
+in_use() {
+  local p
+  for p in "${held[@]}"; do [[ $p == "$1"/* || $p == "$1" ]] && return 0; done
+  return 1
+}
+
+freed=0
+reap() {
+  local d=$1
+  in_use "$d" && return
+  local kb; kb=$(du -sk --one-file-system "$d" 2>/dev/null | cut -f1) || return
+  rm -rf -- "$d" 2>/dev/null && freed=$(( freed + kb ))
+}
+
+# layout is $root/<project-slug>/<session-uuid>/{scratchpad,tasks}
+while IFS= read -r d; do reap "$d"; done < <(
+  find "$root" -mindepth 3 -maxdepth 3 -type d \
+       \( -name scratchpad -o -name tasks \) -mmin +"$scratch_min" 2>/dev/null)
+find "$root" -mindepth 1 -maxdepth 2 -type d -empty -delete 2>/dev/null
+
+# stray build/work dirs dropped straight into $root; project slugs always start with "-"
+while IFS= read -r d; do reap "$d"; done < <(
+  find "$root" -mindepth 1 -maxdepth 1 ! -name '-*' -mmin +"$scratch_min" 2>/dev/null)
+
+while IFS= read -r d; do reap "$d"; done < <(
+  find /tmp -mindepth 1 -maxdepth 1 -type d -name 'playwright-download-*' \
+       -mmin +"$dl_min" 2>/dev/null)
+while IFS= read -r d; do reap "$d"; done < <(
+  find /tmp -mindepth 1 -maxdepth 1 -type d \
+       \( -name 'bunx-*' -o -name 'node-compile-cache' \) -mmin +1440 2>/dev/null)
+
+after=$(df --output=pcent /tmp | tail -1 | tr -dc '0-9')
+printf 'tmp-reap: %s pass, freed %d MiB, /tmp %d%% -> %d%%\n' \
+  "$mode" "$((freed / 1024))" "$use" "$after"

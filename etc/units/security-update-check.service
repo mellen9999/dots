@@ -1,0 +1,6 @@
+[Unit]
+Description=check for pending security updates
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/security-update-check

@@ -1,7 +1,3 @@
-[user]
-	name = mellen
-	email = you@example.com
-
 [core]
   pager = delta
 	editor = vis
@@ -38,3 +34,6 @@
 	d = diff
 	dc = diff --cached
 	pushf = push --force-with-lease
+# identity lives per box in ~/.gitconfig.local (setup.sh asks for it)
+[include]
+	path = ~/.gitconfig.local

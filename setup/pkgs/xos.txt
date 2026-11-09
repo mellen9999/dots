@@ -1,0 +1,14 @@
+# xos builds + test boots
+zig
+cargo-zigbuild
+musl
+busybox
+mtools
+squashfs-tools
+virt-firmware
+sbsigntools
+systemd-ukify
+qemu-base
+edk2-ovmf
+tcc
+minisign

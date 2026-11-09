@@ -1,0 +1,18 @@
+# archinstall owns these (kernel, boot, disks) — setup never installs them; listed so check knows them
+base
+linux
+linux-lts
+linux-headers
+linux-lts-headers
+linux-firmware
+amd-ucode
+intel-ucode
+efibootmgr
+mkinitcpio
+cryptsetup
+btrfs-progs
+xfsprogs
+dosfstools
+parted
+sof-firmware
+wpa_supplicant

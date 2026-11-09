@@ -1,0 +1,11 @@
+# pipewire stack
+pipewire
+pipewire-alsa
+pipewire-jack
+pipewire-pulse
+wireplumber
+alsa-utils
+pulsemixer
+playerctl
+realtime-privileges
+rtkit

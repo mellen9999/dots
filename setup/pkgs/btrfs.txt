@@ -1,0 +1,3 @@
+# auto: root is btrfs
+snapper
+snap-pac

@@ -1,0 +1,7 @@
+# auto: amd gpu present
+mesa
+lib32-mesa
+vulkan-radeon
+lib32-vulkan-radeon
+vulkan-tools
+libva-utils

@@ -1,0 +1,18 @@
+#!/bin/bash
+# daily: alert if security-relevant updates pending >48h
+set -u
+STATE=/var/lib/security-update-check/first-seen
+mkdir -p "${STATE%/*}"
+updates=$(checkupdates 2>/dev/null | wc -l)
+vulns=$(arch-audit -u 2>/dev/null | wc -l)
+if (( vulns == 0 )); then rm -f "$STATE"; exit 0; fi
+now=$(date +%s)
+[[ -f $STATE ]] || echo "$now" > "$STATE"
+first=$(cat "$STATE")
+age_h=$(( (now - first) / 3600 ))
+logger -t security-update-check "$vulns vulnerable pkgs, $updates updates pending, first seen ${age_h}h ago"
+if (( age_h >= 48 )); then
+  uid=@UID@
+  DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+    sudo -u @USER@ notify-send -u critical "security updates pending ${age_h}h" "$vulns vulnerable pkgs — run paru"
+fi

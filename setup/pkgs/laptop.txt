@@ -1,0 +1,3 @@
+# auto: battery present
+brightnessctl
+touchpad-toggle

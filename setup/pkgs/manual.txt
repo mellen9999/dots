@@ -1,0 +1,2 @@
+# built from a project checkout (not aur, not pkg/) — check knows them, setup never installs them
+heatsync-chat

@@ -1,0 +1,9 @@
+# 3d printing + electronics
+openscad
+kicad
+platformio-core
+platformio-core-udev
+python-trimesh
+python-manifold3d
+python-rtree
+i2c-tools

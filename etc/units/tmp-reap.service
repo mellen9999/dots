@@ -1,0 +1,8 @@
+[Unit]
+Description=reap stale scratchpads from RAM-backed /tmp
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/tmp-reap
+Nice=19
+IOSchedulingClass=idle

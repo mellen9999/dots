@@ -1,0 +1,11 @@
+# local models (rocm/vulkan)
+python-pytorch-opt-rocm
+python-safetensors
+python-opencv
+python-mss
+rocm-hip-runtime
+rocm-opencl-runtime
+rocm-toolchain
+llama-cpp
+waifu2x-ncnn-vulkan
+opencode

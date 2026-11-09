@@ -1,2 +1,6 @@
 { "name": "claude", "nice": 10 }
+# stock ananicy maps bash -> type Doc-View -> nice -4, which promotes EVERY bash
+# script (and its children) above normal. background jobs then preempt games.
+# terminals/wm keep their own -4 rules; interactive shells don't need it.
+{ "name": "bash", "nice": 0 }
 { "name": "gitleaks", "nice": 19, "ioclass": "idle" }

@@ -21,21 +21,25 @@ business tooling) stays out. this is the generic, reusable half.
   context nudges), skills, and a selfcheck suite that actually *executes* every
   hook against a synthetic payload instead of assuming it still works
 - **cw** — git worktree tooling so multiple claude sessions can run against one
-  repo without clobbering each other
+  repo without clobbering each other; `cw-move` hands a worktree + its
+  session to another machine and resumes it there
 - **leakcheck / pii-scan** — a pre-commit gate + on-demand audit that blocks
   secrets and personal info before they ever hit git history
 
 ## install
 
+fresh arch box → this whole setup (packages, dwl, configs, firewall, services):
+
 ```
+sudo pacman -S --needed git
 git clone https://github.com/mellen9999/dots ~/sync/config
-~/sync/config/link.sh        # symlinks everything into place
-~/sync/config/link.sh -n     # dry run first if you want to see what it'll do
+~/sync/config/setup.sh
 ```
 
-`link.conf` drives it — one `source:target[:hostname]` line per entry. entries
-whose source isn't present in this repo (machine-specific stuff that stayed
-private) are skipped, not errors.
+step by step, incl. what to pick in archinstall: [setup/README.md](setup/README.md).
+re-run any time; `setup.sh check` shows what's drifted. just the dotfiles, no packages:
+`~/sync/config/link.sh` (`-n` for a dry run). entries whose source isn't in this
+repo are skipped, not errors.
 
 ## notes
 

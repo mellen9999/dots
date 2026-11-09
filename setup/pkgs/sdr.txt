@@ -1,0 +1,9 @@
+gnuradio
+gnuradio-companion
+gnuradio-osmosdr
+gqrx
+rtl-sdr
+inspectrum
+multimon-ng
+dump1090_rs
+urh

@@ -1,0 +1,26 @@
+# every box: system plumbing
+base-devel
+sudo
+man-db
+openssh
+rsync
+networkmanager
+bluez
+bluez-utils
+pacman-contrib
+arch-audit
+libnotify
+zram-generator
+smartmontools
+nftables
+fail2ban
+earlyoom
+ananicy-cpp
+sbctl
+tailscale
+syncthing
+restic
+atuin
+mosh
+bash-completion
+paru

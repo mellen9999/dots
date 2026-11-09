@@ -1,0 +1,15 @@
+# udev rule letting wheel toggle touchpads (fn-ctl touchpad)
+# build: cd ~/sync/config/pkg/touchpad-toggle && makepkg -sif
+pkgname=touchpad-toggle
+pkgver=1
+pkgrel=2
+pkgdesc='let wheel toggle touchpads via sysfs inhibited'
+arch=(any)
+license=(MIT)
+depends=(systemd)
+install=touchpad-toggle.install
+
+package() {
+  install -Dm644 "$HOME/sync/config/etc/udev-rules/90-touchpad-toggle.rules" \
+    "$pkgdir/usr/lib/udev/rules.d/90-touchpad-toggle.rules"
+}

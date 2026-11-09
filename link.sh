@@ -3,7 +3,7 @@ set -euo pipefail
 
 CONF_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONF_FILE="$CONF_DIR/link.conf"
-HOSTNAME="$(hostname)"
+HOSTNAME="$(uname -n)"  # `hostname` is inetutils, not on a fresh arch
 DRY_RUN=false
 
 [[ "${1:-}" == "-n" ]] && DRY_RUN=true
@@ -19,7 +19,7 @@ backup() {
     mkdir -p "$backup_dir"
     backed_up=true
   fi
-  local dest="$backup_dir${target#$HOME}"
+  local dest="$backup_dir${target#"$HOME"}"
   mkdir -p "$(dirname "$dest")"
   mv "$target" "$dest"
   log "  backed up → $dest"
@@ -41,6 +41,12 @@ while IFS= read -r line; do
 
   if [[ ! -e "$src_path" ]]; then
     log "SKIP $src (source missing)"
+    continue
+  fi
+
+  # project files (CLAUDE.md) wait until the project is cloned
+  if [[ "$target" == "$HOME/projects/"*/* && ! -d "$HOME/projects/$(cut -d/ -f1 <<< "${target#"$HOME"/projects/}")" ]]; then
+    log "SKIP $target (project not cloned)"
     continue
   fi
 
