@@ -3,6 +3,8 @@
 .git
 
 // Claude runtime data — machine-local, high-churn, no sync value
+claude/.credentials.json
+claude/.claude.json*
 claude/history.jsonl
 claude/history.sync-conflict-*
 claude/debug
@@ -25,3 +27,31 @@ claude/backups
 !claude/projects/*/memory
 !claude/projects/*/memory/**
 claude/projects/*/*
+
+// claude runtime/app-managed — no sync value (2026-11-09)
+claude/plugins
+claude/skills/synced
+claude/skills/.trash
+claude/teams
+claude/jobs
+claude/daemon
+claude/daemon.*
+claude/state
+claude/chrome
+claude/session-log*
+claude/.last-cleanup
+claude/*sync-conflict*
+claude/selfcheck/.stamp
+claude-local/*
+!claude-local/settings.json
+!claude-local/.gitignore
+claude/security
+
+// per-machine build output and host-local overrides
+pkg/*/src
+pkg/*/pkg
+pkg/*/dwl
+pkg/*/*.pkg.tar.zst
+
+// per-machine (git tracks it, syncthing never moves it)
+config/chromium-flags.conf

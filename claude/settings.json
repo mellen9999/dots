@@ -3,13 +3,20 @@
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
-    "CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION": "false"
+    "CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION": "false",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet",
+    "DISABLE_TELEMETRY": "1"
+  },
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
   },
   "includeGitInstructions": false,
   "permissions": {
     "defaultMode": "auto"
   },
-  "model": "sonnet",
+  "model": "opus",
   "hooks": {
     "PreToolUse": [
       {
@@ -27,7 +34,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "C=$(jq -r \".tool_input.command // empty\"); printf \"%s\" \"$C\" | grep -qE \"(^|[;&|]|&&) *(sudo +)?rm +(-[a-zA-Z]+ +)*-[a-zA-Z]*[rf][a-zA-Z]* +(/|~|\\\\\\$HOME)\\\\*?( |;|$)|(^|[;&|]) *(sudo +)?(dd +if=.* +of=/dev/|mkfs\\\\.)|:\\\\(\\\\)\\\\{ *:\\\\|:\" && { echo \"BLOCKED: destructive command\" >&2; exit 2; }; true"
+            "command": "C=$(jq -r \".tool_input.command // empty\"); printf \"%s\" \"$C\" | grep -qE \"(^|[;&|]|&&) *(sudo +)?rm +(-[a-zA-Z]+ +)*-[a-zA-Z]*[rf][a-zA-Z]* +(/|~|\\\\\\$HOME)\\\\*?( |;|$)|(^|[;&|]) *(sudo +)?(dd +if=.* +of=/dev/|mkfs\\\\.)|:\\\\(\\\\)\\\\{ *:\\\\|:\" && { echo \"BLOCKED: destructive command\" >&2; exit 2; }; true",
+            "onFailure": "block"
           }
         ]
       },
@@ -36,7 +44,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.local/bin/hq-status working 2>/dev/null; true"
+            "command": "$HOME/.local/bin/hq-status working 2>/dev/null; true",
+            "async": true
           }
         ]
       }
@@ -47,7 +56,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{ echo '=== SESSION CONTEXT ==='; echo \"host: $(hostname)\"; echo \"cwd: $(pwd)\"; if git rev-parse --git-dir >/dev/null 2>&1; then echo \"branch: $(git branch --show-current 2>/dev/null)\"; D=$(git status --short 2>/dev/null | wc -l); echo \"modified: $D files\"; git status --short 2>/dev/null | head -8; echo '--- recent commits ---'; git log --oneline -5 2>/dev/null; fi; echo '--- tmux windows ---'; tmux list-windows 2>/dev/null | head -8; PRESERVE=~/.claude/projects/$(echo $PWD | tr / -)/preserve.md; [ -f \"$PRESERVE\" ] && { echo '--- preserved from prior session ---'; cat \"$PRESERVE\"; }; [ -x ci/xos-ci-status ] && { echo '--- xos ci ---'; ci/xos-ci-status 2>/dev/null; }; true; } 2>&1"
+            "command": "{ echo '=== SESSION CONTEXT ==='; echo \"host: $(hostname)\"; echo \"cwd: $(pwd)\"; if git rev-parse --git-dir >/dev/null 2>&1; then echo \"branch: $(git branch --show-current 2>/dev/null)\"; D=$(git status --short 2>/dev/null | wc -l); echo \"modified: $D files\"; git status --short 2>/dev/null | head -8; echo '--- recent commits ---'; git log --oneline -5 2>/dev/null; fi; echo '--- tmux windows ---'; tmux list-windows 2>/dev/null | head -8; PRESERVE=~/.claude/projects/$(printf %s \"$PWD\" | sed \"s/[^A-Za-z0-9-]/-/g\")/preserve.md; [ -n \"$(find \"$PRESERVE\" -mmin -1440 2>/dev/null)\" ] && { echo '--- preserved from prior session ---'; cat \"$PRESERVE\"; }; [ -x ci/xos-ci-status ] && { echo '--- xos ci ---'; ci/xos-ci-status 2>/dev/null; }; true; } 2>&1"
           }
         ]
       },
@@ -56,7 +65,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -e '.source != \"compact\"' >/dev/null 2>&1 && $HOME/.local/bin/hq-status waiting </dev/null 2>/dev/null; true"
+            "command": "jq -e '.source != \"compact\"' >/dev/null 2>&1 && $HOME/.local/bin/hq-status waiting </dev/null 2>/dev/null; true",
+            "async": true
           }
         ]
       },
@@ -65,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "S=$HOME/.claude/selfcheck; H=$(cat $S/run.sh $HOME/.claude/settings.json $HOME/.claude/hooks/* $HOME/.claude/agents/*.md 2>/dev/null | cksum); [ \"$H\" = \"$(cat $S/.stamp 2>/dev/null)\" ] || { O=$(sh $S/run.sh -q 2>&1) && printf \"%s\" \"$H\" > $S/.stamp || { echo \"SELFCHECK FAILED — claude setup is broken:\"; echo \"$O\"; }; }; true",
+            "command": "[ -n \"$HQ_ROBOT\" ] || { S=$HOME/.claude/selfcheck; H=$(cat $S/run.sh $HOME/.claude/settings.json $HOME/.claude/hooks/* $HOME/.claude/agents/*.md 2>/dev/null | cksum); [ \"$H\" = \"$(cat $S/.stamp 2>/dev/null)\" ] || { O=$(sh $S/run.sh -q 2>&1) && printf \"%s\" \"$H\" > $S/.stamp || { echo \"SELFCHECK FAILED — claude setup is broken:\"; echo \"$O\"; }; }; true; }",
             "timeout": 20
           }
         ]
@@ -87,7 +97,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "F=~/.claude/projects/$(echo $PWD | tr / -)/preserve.md; mkdir -p \"$(dirname $F)\"; { echo '# Pre-compact preserve'; date; echo; echo '## cwd'; pwd; echo; echo '## modified files'; git status --short 2>/dev/null; echo; echo '## recent commits'; git log --oneline -10 2>/dev/null; } > \"$F\"; true"
+            "command": "F=~/.claude/projects/$(printf %s \"$PWD\" | sed \"s/[^A-Za-z0-9-]/-/g\")/preserve.md; mkdir -p \"$(dirname $F)\"; { echo '# Pre-compact preserve'; date; echo; echo '## cwd'; pwd; echo; echo '## modified files'; git status --short 2>/dev/null; echo; echo '## recent commits'; git log --oneline -10 2>/dev/null; } > \"$F\"; true"
           }
         ]
       }
@@ -98,16 +108,16 @@
         "hooks": [
           {
             "type": "command",
-            "command": "paplay --volume=9800 ~/.claude/beep.ogg 2>/dev/null & notify-send -t 4000 'Claude' 'Done' 2>/dev/null; true"
+            "command": "[ -n \"$HQ_ROBOT\" ] || { paplay --volume=9800 ~/.claude/beep.ogg 2>/dev/null & notify-send -t 4000 'Claude' 'Done' 2>/dev/null; true; }"
           },
           {
             "type": "command",
-            "command": "bun ~/.claude/hooks/copy-last-code.js",
+            "command": "[ -n \"$HQ_ROBOT\" ] || { bun ~/.claude/hooks/copy-last-code.js; }",
             "timeout": 3
           },
           {
             "type": "command",
-            "command": "~/.claude/hooks/context-nudge.sh",
+            "command": "[ -n \"$HQ_ROBOT\" ] || { ~/.claude/hooks/context-nudge.sh; }",
             "timeout": 5
           }
         ]
@@ -116,27 +126,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.local/bin/hq-status done 2>/dev/null; true"
+            "command": "$HOME/.local/bin/hq-status done 2>/dev/null; true",
+            "async": true
           }
         ]
       }
     ],
     "SessionEnd": [
       {
-        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"[$(date)] session-end cwd=$(pwd)\" >> ~/.claude/session-log.txt; git status --short >> ~/.claude/session-log.txt 2>/dev/null; true",
+            "command": "$HOME/.local/bin/hq-status gone 2>/dev/null; true",
             "async": true
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.local/bin/hq-status gone 2>/dev/null; true"
           }
         ]
       }
@@ -146,7 +148,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.local/bin/hq-status working 2>/dev/null; true"
+            "command": "$HOME/.local/bin/hq-status working 2>/dev/null; true",
+            "async": true
           }
         ]
       }
@@ -156,7 +159,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.local/bin/hq-status waiting 2>/dev/null; true"
+            "command": "$HOME/.local/bin/hq-status waiting 2>/dev/null; true",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$HQ_ROBOT\" ] || { paplay --volume=9800 ~/.claude/beep.ogg 2>/dev/null & notify-send -u critical -t 6000 claude \"turn failed\" 2>/dev/null; true; }"
           }
         ]
       }
@@ -166,12 +181,25 @@
     "type": "command",
     "command": "bash ~/.claude/statusline-command.sh"
   },
-  "enabledPlugins": {
-    "frontend-design@claude-code-plugins": false,
-    "clangd-lsp@claude-plugins-official": true
-  },
+  "enabledPlugins": {},
   "outputStyle": "Concise",
   "feedbackSurveyRate": 0,
+  "spinnerTipsEnabled": false,
+  "modelSettings": {
+    "claude-sonnet-5-5": {
+      "autoCompactWindow": 400000
+    },
+    "claude-opus-5-5": {
+      "effortLevel": "high",
+      "autoCompactWindow": 400000
+    },
+    "claude-fable-5-1": {
+      "autoCompactWindow": 400000
+    },
+    "claude-fable-5-2": {
+      "autoCompactWindow": 400000
+    }
+  },
   "tui": "fullscreen",
   "voice": {
     "enabled": true,
@@ -184,10 +212,5 @@
   "teammateMode": "tmux",
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
-  "voiceEnabled": true,
-  "modelSettings": {
-    "claude-sonnet-5-5": {
-      "autoCompactWindow": 400000
-    }
-  }
+  "voiceEnabled": true
 }

@@ -10,7 +10,10 @@ const tp = input.transcript_path
 if (!tp) process.exit(0)
 
 let lines
-try { lines = readFileSync(tp, 'utf8').trim().split('\n') } catch { process.exit(0) }
+try {
+  const f = Bun.file(tp)
+  lines = (await f.slice(Math.max(0, f.size - 2_000_000)).text()).trim().split('\n')
+} catch { process.exit(0) }
 
 let lastText = ''
 for (let i = lines.length - 1; i >= 0; i--) {

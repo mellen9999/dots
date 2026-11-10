@@ -13,6 +13,9 @@ apply_repos() {
   for r in "${repos[@]}"; do
     d=$(repo_dir "$r")
     if [[ -d $d/.git ]]; then ok "$d"; continue; fi
+    if [[ -n $(ls -A "$d" 2>/dev/null) ]]; then
+      warn "$d already has files but isn't a clone of $r — left alone (move it aside: mv $d $d.old, then re-run)"; continue
+    fi
     if ! gh repo view "$owner/$r" >/dev/null 2>&1; then warn "no repo $owner/$r — skipped"; continue; fi
     gh repo clone "$owner/$r" "$d" -- -q
     did "$d"
@@ -20,7 +23,13 @@ apply_repos() {
 }
 
 check_repos() {
-  local r d0=$DRIFT
-  for r in "${repos[@]}"; do [[ -d $(repo_dir "$r")/.git ]] || drift "not cloned: $r"; done
+  local r d d0=$DRIFT
+  for r in "${repos[@]}"; do
+    d=$(repo_dir "$r")
+    if [[ -d $d/.git ]]; then continue
+    elif [[ -n $(ls -A "$d" 2>/dev/null) ]]; then drift "$d has files but isn't a clone of $r"
+    else drift "not cloned: $r"
+    fi
+  done
   ((DRIFT > d0)) || ok "${#repos[@]} repos cloned"
 }

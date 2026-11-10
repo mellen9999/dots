@@ -122,7 +122,7 @@ runhooks() { # event, extra-json
 runhooks Stop '{}'
 runhooks SessionStart '{"source":"startup"}'
 runhooks PreCompact '{"trigger":"auto"}'
-[ -f "$T/home/.claude/projects/$(echo "$T" | tr / -)/preserve.md" ] \
+[ -f "$T/home/.claude/projects/$(printf %s "$T" | sed "s/[^A-Za-z0-9-]/-/g")/preserve.md" ] \
   && ok precompact-preserve || bad precompact-preserve 'wrote no preserve.md — compaction loses task state'
 
 # context nudge must stay silent below its threshold and fire above it
@@ -139,6 +139,28 @@ if [ -x "$NUDGE" ]; then
 else
   warn context-nudge 'not executable'
 fi
+
+# the nudge only helps if it fires before autocompact does
+NT=$(grep -oE 'gt [0-9]+ \]' "$NUDGE" 2>/dev/null | grep -oE '[0-9]+' | head -1)
+AC=$(jq '[.modelSettings[]?.autoCompactWindow | numbers] | min // 1000000' "$CD/settings.json" 2>/dev/null)
+if [ -n "$NT" ] && [ -n "$AC" ] && [ "$NT" -lt "$AC" ]; then ok "nudge-before-compact (${NT} < ${AC})"
+else bad nudge-before-compact "nudge at ${NT:-?} never fires, autocompact at ${AC:-?}"; fi
+
+# --- plugins: enabled must mean installed ----------------------------------
+PBAD=
+for p in $(jq -r '.enabledPlugins // {} | to_entries[] | select(.value) | .key' "$CD/settings.json" 2>/dev/null); do
+  jq -e --arg p "$p" '.plugins[$p] | length > 0' "$CD/plugins/installed_plugins.json" >/dev/null 2>&1 \
+    && ls -d "$CD"/plugins/cache/*/"${p%@*}" >/dev/null 2>&1 || PBAD="$PBAD $p"
+done
+[ -z "$PBAD" ] && ok plugins || bad plugins "enabled but not installed:$PBAD"
+
+# --- commands shadowed by a same-name skill never run -----------------------
+SHAD=
+for c in "$CD"/commands/*.md; do
+  [ -f "$c" ] || continue
+  n=$(basename "$c" .md); [ -e "$CD/skills/$n" ] && SHAD="$SHAD $n"
+done
+[ -z "$SHAD" ] && ok commands || bad commands "shadowed by skill:$SHAD"
 
 # --- statusline -------------------------------------------------------------
 if [ -r "$CD/statusline-command.sh" ]; then

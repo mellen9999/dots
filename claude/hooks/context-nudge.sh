@@ -1,15 +1,15 @@
 #!/bin/sh
-# nudge to /compact when a session's context crosses 700k (1M window), then once per 100k band.
+# nudge to /compact when a session's context crosses 300k (autocompact at 400k), then once per 100k band.
 # reads Stop-hook json on stdin; estimates context from the last usage entry.
 INPUT=$(cat)
 T=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty')
 [ -n "$T" ] && [ -f "$T" ] || exit 0
 
-TOK=$(grep '"input_tokens"' "$T" | tail -1 | jq -r '
+TOK=$(tail -c 2000000 "$T" | grep "\"input_tokens\"" | tail -1 | jq -r '
   (.message.usage // .usage // {}) as $u
   | (($u.input_tokens // 0) + ($u.cache_read_input_tokens // 0) + ($u.cache_creation_input_tokens // 0))' 2>/dev/null)
 case "$TOK" in ''|*[!0-9]*) exit 0 ;; esac
-[ "$TOK" -gt 700000 ] || exit 0
+[ "$TOK" -gt 300000 ] || exit 0
 
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // "x"')
 STATE="/tmp/claude-ctx-nudge-$SID"

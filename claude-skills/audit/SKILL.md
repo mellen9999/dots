@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Run the 7-step pipeline (test, verify, permanent, harden, refactor, clean) on current repo
+description: Full 7-step quality pass (test, verify, permanent, harden, refactor, clean, report) on the current repo. Only on explicit /audit, never for casual use of the word audit.
 allowed-tools: Bash, Read, Edit, Write, Grep, Glob, Agent
 model: sonnet
 ---
@@ -11,7 +11,7 @@ Run the full quality pipeline on the current repo. Accepts optional focus area a
 
 ## Steps
 
-1. **Test** — run the test suite (`bun test`), report failures
+1. **Test** — run the test suite (pick runner: package.json `scripts.test` → `bun run test`; Makefile `test:` → `make test`; cmdchamp → `bash cmdchamp test`; else `bun test`), report failures
 2. **Verify** — check the app actually works (start server, hit endpoints, check logs)
 3. **Permanent** — find any one-off changes that should be persisted (systemd, config, cron)
 4. **Harden** — security scan: input validation, XSS, injection, auth checks. Performance: redundant queries, missing indexes, unnecessary allocations
