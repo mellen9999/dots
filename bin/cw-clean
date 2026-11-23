@@ -21,7 +21,11 @@
 #   2. a worktree younger than MIN_AGE_MIN is never reaped — covers the window
 #      between `cw` creating the directory and the agent writing its first byte,
 #      where the tree is legitimately clean but about to be used
-# and `remove` no longer passes --force, so git's own dirty check is a third line
+#   3. a worktree a live process sits in is never reaped — a session that only
+#      reads (a 3h memory soak, a bisect, a long test run) keeps its tree clean,
+#      at base and old for hours, which is exactly what landed looks like
+#      (2026-11-13: reaped a soaking session's tree out from under it)
+# and `remove` no longer passes --force, so git's own dirty check is a last line
 # of defence rather than something we override. A reaper that keeps too much is a
 # tidiness bug; one that deletes too much destroys work. Fail toward keeping.
 set -euo pipefail
@@ -42,6 +46,10 @@ reaped=0
 # newborn one costs a session its work. Override with CW_CLEAN_MIN_AGE_MIN=0 when
 # deliberately tidying up after a land.
 MIN_AGE_MIN=${CW_CLEAN_MIN_AGE_MIN:-30}
+# pid<TAB>cwd of every live process we can see, read once (no /proc → empty, no guard)
+live_cwds=$(for p in /proc/[0-9]*; do
+  if c=$(readlink "$p/cwd" 2>/dev/null); then printf '%s\t%s\n' "${p#/proc/}" "$c"; fi
+done)
 
 # Parse `git worktree list --porcelain` into (path, branch, locked) records.
 path="" branch="" locked=0
@@ -60,6 +68,13 @@ flush() {
   # indistinguishable from a landed one — so give it time to be written to.
   if [ -d "$path" ] && [ -z "$(find "$path" -maxdepth 0 -mmin "+$MIN_AGE_MIN" 2>/dev/null)" ]; then
     echo "skip (younger than ${MIN_AGE_MIN}m): $branch"
+    return 0
+  fi
+  # Guard 3: a live process sits in it — clean and old is not the same as done.
+  real=$(readlink -f "$path" 2>/dev/null || echo "$path")
+  pid=$(awk -F'\t' -v d="$real" '$2 == d || index($2, d "/") == 1 { print $1; exit }' <<<"$live_cwds")
+  if [ -n "$pid" ]; then
+    echo "skip (in use by pid $pid $(ps -o comm= -p "$pid" 2>/dev/null)): $branch"
     return 0
   fi
   # Merged iff branch tip has no commits beyond the base branch.
