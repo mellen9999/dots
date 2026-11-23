@@ -72,6 +72,7 @@ all keys: `~/sync/config/dwl-config.h`
 - install stopped with a red line: fix what it says (usually the internet) and `bash install.sh` again
 - setup stopped: `~/sync/config/setup.sh` again — it only does what's missing, safe any time
 - what's out of date: `~/sync/config/setup.sh check`
+- no internet, or a new wifi: type `nmtui` → activate a connection → pick it (arrow keys + enter)
 
 ## your own setup on top
 
