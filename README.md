@@ -21,8 +21,7 @@ business tooling) stays out. this is the generic, reusable half.
   context nudges), skills, and a selfcheck suite that actually *executes* every
   hook against a synthetic payload instead of assuming it still works
 - **cw** — git worktree tooling so multiple claude sessions can run against one
-  repo without clobbering each other; `cw-move` hands a worktree + its
-  session to another machine and resumes it there
+  repo without clobbering each other
 - **leakcheck / pii-scan** — a pre-commit gate + on-demand audit that blocks
   secrets and personal info before they ever hit git history
 

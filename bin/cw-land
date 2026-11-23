@@ -27,7 +27,7 @@ cw_has_origin || {
   echo "cw-land: this repo has no 'origin' — commit and merge locally instead." >&2; exit 1
 }
 # The branch to land ONTO, resolved from the remote rather than assumed to be
-# `main`; 4 of mellen's repos are `master` and every one of them failed here.
+# `main`; 4 repos here are `master` and every one of them failed here.
 base_ref=$(cw_base_ref)
 base_branch=$(cw_base_branch)
 

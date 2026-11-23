@@ -2,7 +2,7 @@
 # cw-lib.sh — shared truth for cw / cw-land / cw-clean.
 #
 # All three used to hardcode `main`. That is wrong on any repo whose default
-# branch is `master`, and on 2026-08-16 that was 4 of mellen's 17 repos
+# branch is `master`, and on 2026-08-16 that was 4 of 17 repos
 # (bazaarinfo, comfyui, gbs-control, scart-breakout) — `cw` there resolved no
 # base and died on `git worktree add … main`. Three copies of the same
 # assumption is also three places to fix it, so it lives here once.
@@ -149,7 +149,7 @@ cw_claim_window() {
   [ -n "${TMUX:-}" ] && [ -n "${TMUX_PANE:-}" ] || return 0
   # -t "$TMUX_PANE", never a bare display-message: bare reads the session's
   # ACTIVE window, so a cw started in a background pane would rename whatever
-  # tab mellen happens to be looking at.
+  # tab you happen to be looking at.
   CW_WIN=$(tmux display-message -pt "$TMUX_PANE" '#{window_id}' 2>/dev/null) || return 0
   [ -n "$CW_WIN" ] || return 0
   CW_WIN_NAME=$(tmux display-message -pt "$CW_WIN" '#W' 2>/dev/null) || CW_WIN_NAME=''

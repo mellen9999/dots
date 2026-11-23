@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # prints nothing when the dgpu is at stock power. screams when something capped it.
-# silent no-op on machines without an amdgpu power cap (mele).
+# silent no-op on machines without an amdgpu power cap.
 
 cap_file=$(echo /sys/class/drm/card*/device/hwmon/hwmon*/power1_cap)
 def_file="${cap_file%_cap}_cap_default"

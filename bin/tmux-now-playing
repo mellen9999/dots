@@ -6,11 +6,8 @@ if [[ -n "$local_song" && "$local_song" != " - " ]]; then
   exit
 fi
 
-host=$(hostname)
-if [[ "$host" == "heatpc" ]]; then
-  remote=mele
-else
-  remote=heatpc
-fi
+# heatpc is the music box; other machines also check it
+[[ $(hostname) == heatpc ]] && exit
+remote=heatpc
 
 ssh -o ConnectTimeout=2 "$remote" "playerctl metadata --format '{{artist}} - {{title}}'" 2>/dev/null | grep -v '^ - $'

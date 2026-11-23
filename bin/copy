@@ -1,5 +1,5 @@
 #!/bin/sh
-# clipboard router — put text on whatever screen mellen is actually looking at.
+# clipboard router — put text on whatever screen you are actually looking at.
 #
 #   claude:  echo "..." | copy
 #   shell:   copy some literal text

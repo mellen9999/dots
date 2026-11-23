@@ -10,7 +10,7 @@ LOG=${XDG_STATE_HOME:-$HOME/.local/state}/ai-llama.log
 OPENCODE_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/opencode
 SELF=$(readlink -f "$0")
 
-# --- non-heatpc hosts keep their own wrapper (mele runs a cpu-only 4B) ----------
+# --- non-heatpc hosts keep their own wrapper ----------------------------------
 if [ "$(hostname)" != "heatpc" ]; then
   for alt in "$HOME/scripts/ai" "$HOME/.local/bin/ai-local"; do
     [ -x "$alt" ] && [ "$(readlink -f "$alt")" != "$SELF" ] && exec "$alt" "$@"
