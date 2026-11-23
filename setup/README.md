@@ -1,40 +1,82 @@
-# new box
+# install
 
-fresh arch → this setup. two parts: archinstall (disks, boot), then `setup.sh` (everything else).
+a blank pc → arch linux + this setup. about an hour, mostly waiting.
 
-## 1. archinstall
+you get: the dwl desktop, foot terminal, firefox, mpv, audio, a firewall, an encrypted disk with automatic snapshots, and a vim-flavored shell (tmux, vis, fzf, ripgrep). nothing else — add what you want with `sudo pacman -S <name>`.
 
-boot the arch usb, run `archinstall`, pick:
+you need:
+- the pc. **its disk gets erased** — copy off anything you want to keep first
+- a usb stick, 2gb or bigger (also gets erased)
+- internet. a cable or your phone (usb tethering) is easiest; wifi works too
+- graphics: amd or intel. nvidia isn't set up
 
-- disk: wipe it, **btrfs** with default subvolumes, compression on, snapper snapshots
-- disk encryption: **luks**, set a passphrase
-- bootloader: **systemd-boot**, unified kernel images **on**
-- kernels: **linux** + **linux-lts**
-- profile: **minimal**
-- audio: **pipewire**
-- network: **NetworkManager**
-- user: your name, sudo **yes**
-- hostname: anything — a matching `setup/hosts/<hostname>` adds that box's extras, otherwise you get the default
+## 1. make the usb
 
-reboot into the new system, log in.
+1. download `archlinux-x86_64.iso`: [archlinux.org/download](https://archlinux.org/download) → scroll to a mirror in your country → click it → the `.iso` file
+2. put it on the stick:
+   - windows: [rufus](https://rufus.ie) → pick the stick and the iso → start → if it asks, pick **dd image mode**
+   - mac: [balena etcher](https://etcher.balena.io) → flash from file → the iso → the stick → flash
+   - linux: `sudo dd if=archlinux-x86_64.iso of=/dev/sdX bs=4M status=progress oflag=sync` (`lsblk` shows which sdX is the stick)
 
-## 2. setup
+## 2. start from it
+
+1. plug the stick in, turn the pc on, and keep tapping the boot menu key: usually **F12**, F11, F8 or Esc (it flashes on screen at power on)
+2. pick the usb entry with **UEFI** in its name
+3. pc boots normally instead, or says secure boot violation: open the bios settings (**Del** or **F2** at power on), turn **secure boot** off, save, try again
+4. you're in when you see `root@archiso ~ #`. text tiny? type `setfont ter-132b`
+
+## 3. internet
+
+- cable or phone: nothing to do
+- wifi: type `iwctl station wlan0 connect "your wifi name"`, then the wifi password
+  ("no such device"? `iwctl device list` shows the real name to use instead of wlan0)
+- check: `ping -c 3 archlinux.org` → lines with `time=` mean it works
+
+## 4. install
+
+type exactly:
 
 ```
-sudo pacman -S --needed git
-git clone https://github.com/mellen9999/dots ~/sync/config
-~/sync/config/setup.sh
+curl -LO https://raw.githubusercontent.com/mellen9999/dots/main/install.sh
+bash install.sh
 ```
 
-(a private fork with your own host profiles works the same: clone it to `~/sync/config` instead.)
+it asks four things: which disk, your name, a password, your city. the password unlocks the disk and logs you in — **write it down, there's no reset**. nothing is erased until you type `erase`. then 10-20 min.
 
-it asks for your password once, then runs on its own (20–40 min, mostly downloads). it ends with a short list of things only you can do (git name/email, tailscale login, secure boot). safe to re-run any time — it only does what's missing.
+## 5. first start
 
-your own extras (more packages, repos to clone, backups) go in `setup/hosts/<your-hostname>` — copy `hosts/heatlaptop` style: source `default`, then add.
+1. type `poweroff`, pull the stick out, turn the pc on
+2. type your password to unlock the disk (nothing shows while you type — normal)
+3. log in: your name, same password
+4. setup finishes by itself (20-40 min), then the desktop opens
 
-## after
+from then on: password, log in, desktop. optional extras (secure boot, ssh key, …): `~/sync/config/setup.sh handoff` in a terminal lists what's left.
 
-- `setup.sh check` — what's drifted from the lists (exit 1 if anything). changes nothing
-- `setup.sh <step>` — one step: `pacman pkgs aur etc repos dots services handoff`
-- new package → add it to a list in `setup/pkgs/`; new /etc file → `setup/etc.conf`; dotfile → `link.conf`
-- what each box gets: `setup/hosts/<hostname>`
+## using it
+
+the windows key (super) runs everything:
+
+| keys | does |
+|---|---|
+| super + shift + enter | terminal |
+| super + p | open an app (type its name, enter) |
+| super + j / k | next / previous window |
+| super + 1 … 9 | switch workspace |
+| super + shift + c | close a window |
+| super + shift + q | leave the desktop |
+
+all keys: `~/sync/config/dwl-config.h`
+
+## stuck
+
+- install stopped with a red line: fix what it says (usually the internet) and `bash install.sh` again
+- setup stopped: `~/sync/config/setup.sh` again — it only does what's missing, safe any time
+- what's out of date: `~/sync/config/setup.sh check`
+
+## your own setup on top
+
+- one step only: `setup.sh <step>` — `pacman pkgs aur etc repos dots services handoff`
+- new package → a list in `setup/pkgs/`; /etc file → `setup/etc.conf`; dotfile → `link.conf`
+- per-machine extras (packages, repos, backups) go in `setup/hosts/<hostname>`: source `default`, then add. rename the box with `sudo hostnamectl hostname <name>` and run `setup.sh`
+- a private fork works the same: clone it to `~/sync/config` instead
+- `setup/test-install.sh` runs all of this on a throwaway vm

@@ -1,4 +1,4 @@
-# archinstall owns these (kernel, boot, disks) — setup never installs them; listed so check knows them
+# install.sh owns these (kernel, boot, disks) — setup never installs them; listed so check knows them
 base
 linux
 linux-lts

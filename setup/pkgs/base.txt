@@ -11,16 +11,9 @@ pacman-contrib
 arch-audit
 libnotify
 zram-generator
-smartmontools
 nftables
-fail2ban
 earlyoom
 ananicy-cpp
 sbctl
-tailscale
-syncthing
-restic
-atuin
-mosh
 bash-completion
 paru

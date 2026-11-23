@@ -45,7 +45,6 @@ apply() { # [only-this-step]
   local log=$HOME/.local/state/setup/$TS.log
   exec > >(tee -a "$log") 2>&1
   printf 'setup on %s (profile: %s) — log: %s\n' "$HOST" "$PROFILE" "$log"
-  [[ $PROFILE == default ]] && warn "no setup/hosts/$HOST — using the default profile"
   sudo_start
   trap sudo_stop EXIT
   trap '((BASH_SUBSHELL)) || printf "\n%ssetup: step \"%s\" failed (line %s). fix it, then run setup.sh again — it picks up where it left off%s\n" "$R" "$CUR_STEP" "$LINENO" "$N"' ERR

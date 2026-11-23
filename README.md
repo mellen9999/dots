@@ -27,7 +27,10 @@ business tooling) stays out. this is the generic, reusable half.
 
 ## install
 
-fresh arch box → this whole setup (packages, dwl, configs, firewall, services):
+blank pc → arch + this whole setup from a usb stick, step by step:
+[setup/README.md](setup/README.md). about an hour, mostly waiting.
+
+already on arch:
 
 ```
 sudo pacman -S --needed git
@@ -35,7 +38,6 @@ git clone https://github.com/mellen9999/dots ~/sync/config
 ~/sync/config/setup.sh
 ```
 
-step by step, incl. what to pick in archinstall: [setup/README.md](setup/README.md).
 re-run any time; `setup.sh check` shows what's drifted. just the dotfiles, no packages:
 `~/sync/config/link.sh` (`-n` for a dry run). entries whose source isn't in this
 repo are skipped, not errors.

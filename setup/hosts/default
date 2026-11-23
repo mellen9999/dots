@@ -1,10 +1,10 @@
 # shellcheck shell=bash disable=SC2034
-# the shareable setup: any box without its own profile. auto-added on detect: hw-amd, btrfs, laptop
-# your private stuff (backups, repos) goes in hosts/<hostname>, which sources this
+# the starter: any box without its own profile. auto-added on detect: hw-amd, btrfs, laptop
+# your own extras go in hosts/<hostname>, which sources this (or hosts/personal)
 groups=(base desktop audio dev media)
-services=(NetworkManager sshd tailscaled nftables fail2ban earlyoom ananicy-cpp systemd-timesyncd
-  fstrim.timer paccache.timer security-update-check.timer tmp-reap.timer cups.socket docker.socket)
-user_units=(syncthing.service claude-selfcheck.timer)
-user_groups=(wheel audio video realtime docker)
+services=(NetworkManager nftables earlyoom ananicy-cpp systemd-timesyncd
+  fstrim.timer paccache.timer security-update-check.timer tmp-reap.timer)
+user_units=()
+user_groups=(wheel audio video realtime)
 # cloned from your github account (github_user=name to pick another)
 repos=()

@@ -50,6 +50,12 @@ while IFS= read -r line; do
     continue
   fi
 
+  # claude code files wait until setup links ~/.claude (only once claude is installed)
+  if [[ "$target" == "$HOME/.claude/"* && ! -e "$HOME/.claude" ]]; then
+    log "SKIP $target (claude code not installed)"
+    continue
+  fi
+
   if [[ -L "$target" && "$(readlink "$target")" == "$src_path" ]]; then
     log "OK   $target"
     continue

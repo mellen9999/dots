@@ -10,7 +10,6 @@ slurp
 grim
 wlr-randr
 wl-clipboard
-wtype
 xdg-desktop-portal-wlr
 xdg-utils
 xorg-xwayland
@@ -23,8 +22,3 @@ ttf-liberation
 terminus-font
 terminus-font-ttf
 firefox
-ungoogled-chromium-bin
-chromium-extension-web-store
-keepassxc
-chatterino2-nightly-bin
-cups

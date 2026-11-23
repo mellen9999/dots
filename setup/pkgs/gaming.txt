@@ -3,4 +3,6 @@ gamemode
 lib32-gamemode
 mangohud
 lib32-mangohud
+lib32-mesa
+lib32-vulkan-radeon
 proton-cachyos-slr

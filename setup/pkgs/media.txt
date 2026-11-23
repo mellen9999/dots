@@ -2,7 +2,4 @@
 mpv
 mpv-mpris
 yt-dlp
-obs-studio
 wf-recorder
-python-mutagen
-flite

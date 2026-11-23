@@ -88,7 +88,7 @@ etc_entries() {
     [[ -z ${line//[[:space:]]/} ]] && continue
     IFS=: read -r src dest host mode <<<"$line"
     if [[ -n $host ]]; then
-      [[ $host == "$HOST" ]] || continue
+      [[ $host == "$HOST" || " ${groups[*]} " == *" $host "* ]] || continue
       pinned[$dest]=1
     elif [[ -n ${pinned[$dest]:-} ]]; then
       continue
